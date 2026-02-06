@@ -1,6 +1,6 @@
 # esp32_dab_radio
 
-This is an ESP 32 based audio sytem with DAB+ radio support as well as Bluetooth.
+This is an ESP 32 based audio sytem with FM & DAB+ radio support as well as Bluetooth.
 
 <p align="center">
   <br>
@@ -23,7 +23,7 @@ Therefore, the speakers, the number / type of buttons, the display have been cho
 
 ### Sources
 
-Th system shall allow listening to:
+The system shall allow listening to:
 - FM radio;
 - DAB+ radio;
 - Bluetooth audio source.
@@ -41,7 +41,9 @@ There are 2 options for the Bluetooth:
 - Use an amplifier module that support BT natively (for example, this [Dayton Audio](https://www.daytonaudio.com/product/1863/kabd-250-2-x-50w-all-in-one-amplifier-board-with-dsp-and-bluetooth-5-0-aptx-hd) module),
 - Use the Bluetooth from the ESP 32 board.
 
-### Audio
+### Audio sub-sytem
 _TBD_
+
+## Cabinet restoration
 
 
