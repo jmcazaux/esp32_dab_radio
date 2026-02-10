@@ -1,18 +1,44 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#include <AdvancedLogger.h>
+#include <LittleFS.h>
+
+#define ST(A) #A
+#define STR(A) ST(A)
+
+#define STR(VERSION) ST(VERSION)
+
+// Logging related
+const char* LOG_FILE_PATH = "/internal/log.txt";
+const ulong MAX_LOG_LINES = 500;
+
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+
+  Serial.begin(MONITOR_SPEED);
+
+  // Initialize the logger
+  if (!LittleFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting LittleFS");
+  }
+
+  AdvancedLogger::begin(LOG_FILE_PATH);
+
+  AdvancedLogger::setPrintLevel(LogLevel::VERBOSE);
+  AdvancedLogger::setSaveLevel(LogLevel::FATAL);
+  AdvancedLogger::setMaxLogLines(MAX_LOG_LINES);
+  AdvancedLogger::begin(LOG_FILE_PATH);
+
+  LOG_INFO("Initializing systems...");
+  LOG_INFO("* Version %s", STR(VERSION));
+
+
+  LOG_INFO("Systems initialized");
+
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  LOG_DEBUG("Starting main loop");
+  delay(250);
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
