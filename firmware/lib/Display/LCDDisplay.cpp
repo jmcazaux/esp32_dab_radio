@@ -11,13 +11,6 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     init();
 }
 
-LCDDisplay::LCDDisplay(LiquidCrystal_I2C lcd, uint8_t nbColumns, uint8_t nbLines) {
-    this->lcd = &lcd;
-    this->nbColumns = nbColumns;
-    this->nbLines = nbLines;
-    init();
-}
-
 void LCDDisplay::switchOn() {
     lcd->on();
     lcd->clear();
@@ -35,20 +28,24 @@ void LCDDisplay::clear() {
 }
 
 void LCDDisplay::clearLine(u_int8_t line) {
-  if (line >= nbLines) {
-      LOG_ERROR("Cannot clear line %d (only %d lines)... Ignoring.", line, nbLines);
-      return;
-  }
+    if (line >= nbLines) {
+        LOG_ERROR("Cannot clear line %d (only %d lines)... Ignoring.", line, nbLines);
+        return;
+    }
 
-  lcd->setCursor(0, line);
-  for (uint8_t i = 0; i < nbColumns; i++) {
-      lcd->print(" ");
-  }
+    lcd->setCursor(0, line);
+    for (uint8_t i = 0; i < nbColumns; i++) {
+        lcd->print(" ");
+    }
 }
 
-void LCDDisplay::displayLine(String text, uint8_t line, DisplayAlignment align) {
+void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) {
+    LOG_INFO("Displaying line \"%s\" at line %d", text, line);
     lcd->setCursor(0, line);
-    lcd->print(text);
+    char charLine[nbColumns + 1];
+    this->padOrTrim(text, charLine, nbColumns, align);
+    LOG_DEBUG(". -> |> %s <|", charLine);
+    lcd->print(charLine);
 }
 
 void LCDDisplay::init() {
