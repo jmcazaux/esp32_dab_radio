@@ -2,13 +2,26 @@
 
 #include <AdvancedLogger.h>
 #include <LiquidCrystal_I2C.h>
+#include <string.h>
 
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");
     lcd = new LiquidCrystal_I2C(lcdAddr, lcdColumns, lcdRows);
     nbColumns = lcdColumns;
     nbLines = lcdRows;
-    init();
+
+    lines = (char**)malloc(sizeof(char*) * nbLines);
+    uint8_t i;
+    for (i = 0; i < nbColumns; i++) {
+        lines[i] = (char*)malloc(sizeof(char) * nbColumns + 1);
+    }
+
+    displaySources = new DisplaySource[lcdRows];
+
+    LOG_DEBUG("Initializing LCDDisplay...");
+    lcd->init();
+    lcd->noAutoscroll();
+    switchOff();
 }
 
 void LCDDisplay::switchOn() {
@@ -40,17 +53,36 @@ void LCDDisplay::clearLine(u_int8_t line) {
 }
 
 void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) {
-    LOG_INFO("Displaying line \"%s\" at line %d", text, line);
+    LOG_DEBUG("Displaying line \"%s\" at line %d", text, line);
+
+    displaySources[line].setSource(text, align);
+
     lcd->setCursor(0, line);
-    char charLine[nbColumns + 1];
-    this->padOrTrim(text, charLine, nbColumns, align);
-    LOG_DEBUG(". -> |> %s <|", charLine);
-    lcd->print(charLine);
+    this->padOrTrim(text, lines[line], nbColumns, align);
+    LOG_DEBUG("|> %s <|", lines[line]);
+    lcd->print(lines[line]);
 }
 
 void LCDDisplay::init() {
-    LOG_DEBUG("Initializing LCDDisplay...");
-    lcd->init();
-    lcd->noAutoscroll();
-    switchOff();
+}
+
+void LCDDisplay::DisplaySource::setSource(char* source, DisplayAlignment align) {
+    alignment = align;
+    setSource(source);
+}
+
+void LCDDisplay::DisplaySource::setSource(char* source) {
+    if (_source != NULL) {
+        free(_source);
+    }
+
+    uint8_t sourceLength = strlen(source);
+
+    _source = new char[sourceLength + 1];
+    strcpy(_source, source);
+    rollingIndex = 0;
+}
+
+char* LCDDisplay::DisplaySource::source() {
+    return _source;
 }

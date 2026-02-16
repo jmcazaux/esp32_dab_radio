@@ -20,4 +20,27 @@ class LCDDisplay : public Display {
     LiquidCrystal_I2C* lcd = NULL;
     u_int8_t nbColumns;
     u_int8_t nbLines;
+
+    char** lines;
+
+    // Keep a copy of what is currently displayed (rolling index, etc)
+    class DisplaySource {
+       public:
+        DisplayAlignment alignment;
+        uint8_t rollingIndex;
+
+        DisplaySource() : alignment{LEFT},
+                          rollingIndex{0},
+                          _source{nullptr} {
+        }
+
+        void setSource(char* source, DisplayAlignment align);
+        void setSource(char* source);
+        char* source();
+
+       private:
+        char* _source;
+    };
+
+    DisplaySource* displaySources;
 };
