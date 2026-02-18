@@ -12,6 +12,7 @@ class LCDDisplay : public Display {
     void clearLine(u_int8_t line);
     void switchOn();
     void switchOff();
+    void tick(unsigned long millis);
 
     void displayLine(char text[], uint8_t line, DisplayAlignment align);
 
@@ -20,6 +21,8 @@ class LCDDisplay : public Display {
     LiquidCrystal_I2C* lcd = NULL;
     u_int8_t nbColumns;
     u_int8_t nbLines;
+
+    unsigned long lastCycleTime = 0;
 
     char** lines;
 

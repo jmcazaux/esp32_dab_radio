@@ -40,9 +40,7 @@ void setup() {
     display->displayLine(R"(Philips BF501 Redux)", 0, LEFT);
     display->displayLine(R"(Starting systems...)", 1, LEFT);
     display->displayLine(versionString, 2, CENTER);
-
-    delay(3500);
-    display->clear();
+    display->displayLine(R"(Lorem Ipsum Sit Amer Dolores)", 3, ROLLING_LEFT);
 
     LOG_INFO("Systems initialized");
 }

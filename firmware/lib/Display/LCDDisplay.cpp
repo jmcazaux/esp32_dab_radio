@@ -4,6 +4,8 @@
 #include <LiquidCrystal_I2C.h>
 #include <string.h>
 
+const long CYCLE_INTERVAL = 100;
+
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");
     lcd = new LiquidCrystal_I2C(lcdAddr, lcdColumns, lcdRows);
@@ -19,7 +21,6 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     displaySources = new DisplaySource[lcdRows];
 
     LOG_DEBUG("Initializing LCDDisplay...");
-    lcd->init();
     lcd->noAutoscroll();
     switchOff();
 }
@@ -63,7 +64,22 @@ void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) 
     lcd->print(lines[line]);
 }
 
-void LCDDisplay::init() {
+void LCDDisplay::tick(unsigned long millis) {
+    if ((millis + CYCLE_INTERVAL) > lastCycleTime) {
+        return;
+    }
+
+    lastCycleTime = millis;
+
+    uint8_t i;
+    for (i = 0; i < nbLines; i++) {
+        DisplaySource source = displaySources[i];
+        if (source.alignment == ROLLING_LEFT) {
+            source.rollingIndex++;
+            this->padOrTrim(source.source(), lines[i], nbColumns, source.alignment, source.rollingIndex);
+            lcd->print(lines[i]);
+        }
+    }
 }
 
 void LCDDisplay::DisplaySource::setSource(char* source, DisplayAlignment align) {

@@ -88,15 +88,6 @@ void Display::rollLeft(char source[], char destination[], int size, long cycle) 
     int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
     int i;
 
-    LOG_DEBUG(
-        "\nsource         \"%s\"\nsize           %d\ncycle          %d\nsourceLength   %d\napparentLength %d\nsourceFrom     %d",
-        source,
-        size,
-        cycle,
-        sourceLength,
-        apparentLength,
-        sourceFrom);
-
     if (sourceFrom < sourceLength) {
         // "Foobar" -> "bar     " || "r      F"
 
@@ -127,7 +118,6 @@ void Display::rollLeft(char source[], char destination[], int size, long cycle) 
     }
 
     destination[size] = '\0';
-    LOG_DEBUG("\ndestination    \"%s\"", destination);
 }
 
 void Display::trim(char source[], char destination[], int size, DisplayAlignment align) {
