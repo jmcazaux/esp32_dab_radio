@@ -5,6 +5,8 @@
 #include <Arduino.h>
 #include <string.h>
 
+#include <stdexcept>
+
 void prefixAndSuffixStringWithSpaces(char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
     uint8_t i;
 
@@ -33,34 +35,39 @@ void Display::displayLine(char text[], uint8_t line) {
     displayLine(text, line, DisplayAlignment::LEFT);
 };
 
-void Display::padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align, uint8_t from) {
-    if (strlen(source) > size) {
-        return trim(source, destination, size, align, from);
+void Display::padOrTrim(char source[], char destination[], int size, DisplayAlignment align, long cycle) {
+    if ((align == ROLLING_LEFT || align == ROLLING_RIGHT) && cycle < 0) {
+        throw std::invalid_argument("'cycle' must be provided for rolling alignments");
+    }
+
+    if (align == ROLLING_LEFT) {
+        rollLeft(source, destination, size, cycle);
+    } else if (strlen(source) > size) {
+        return trim(source, destination, size, align);
     } else {
-        return pad(source, destination, size, align, from);
+        return pad(source, destination, size, align);
     }
 };
 
-void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignment align, uint8_t from) {
+void Display::pad(char source[], char destination[], int size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
-    uint8_t toLength = size;
 
     switch (align) {
         case RIGHT: {
-            uint8_t prefixLength = toLength - sourceLength;
+            uint8_t prefixLength = size - sourceLength;
             prefixAndSuffixStringWithSpaces(source, destination, prefixLength, 0);
             break;
         }
 
         case LEFT: {
-            uint8_t suffixLength = toLength - sourceLength;
+            uint8_t suffixLength = size - sourceLength;
             prefixAndSuffixStringWithSpaces(source, destination, 0, suffixLength);
             break;
         }
 
         case CENTER: {
-            uint8_t prefixLength = (toLength - sourceLength) / 2;
-            uint8_t suffixLength = toLength - sourceLength - prefixLength;
+            uint8_t prefixLength = (size - sourceLength) / 2;
+            uint8_t suffixLength = size - sourceLength - prefixLength;
             prefixAndSuffixStringWithSpaces(source, destination, prefixLength, suffixLength);
             break;
         }
@@ -75,7 +82,55 @@ void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignm
     destination[size] = '\0';
 }
 
-void Display::trim(char source[], char destination[], uint8_t size, DisplayAlignment align, uint8_t from) {
+void Display::rollLeft(char source[], char destination[], int size, long cycle) {
+    int sourceLength = strlen(source);
+    int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
+    int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
+    int i;
+
+    LOG_DEBUG(
+        "\nsource         \"%s\"\nsize           %d\ncycle          %d\nsourceLength   %d\napparentLength %d\nsourceFrom     %d",
+        source,
+        size,
+        cycle,
+        sourceLength,
+        apparentLength,
+        sourceFrom);
+
+    if (sourceFrom < sourceLength) {
+        // "Foobar" -> "bar     " || "r      F"
+
+        // "bar"
+        copySubstring(source, destination, sourceFrom, min(sourceLength - sourceFrom, int(size)));
+
+        // "bar      "
+        for (i = sourceLength - sourceFrom; i < size; i++) {
+            destination[i] = ' ';
+        }
+
+        // "r      F"
+        if (sourceFrom == sourceLength - 1) {
+            destination[size - 1] = source[0];
+        }
+
+    } else {
+        // "    Foob" || " Foobar "
+        // "        "
+        for (i = 0; i < size; i++) {
+            destination[i] = ' ';
+        }
+
+        // "    Foob"
+        for (i = 0; i < sourceLength && (apparentLength - sourceFrom + i) < size; i++) {
+            destination[apparentLength - sourceFrom + i] = source[i];
+        }
+    }
+
+    destination[size] = '\0';
+    LOG_DEBUG("\ndestination    \"%s\"", destination);
+}
+
+void Display::trim(char source[], char destination[], int size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
     switch (align) {
         case RIGHT: {

@@ -5,8 +5,18 @@
 #if defined(ARDUINO)
 #include <Arduino.h>
 
+#include <AdvancedLogger.h>
+
+const char* LOG_FILE_PATH = "/internal/log.txt";
+const ulong MAX_LOG_LINES = 500;
+
 void setup() {
     Serial.begin(MONITOR_SPEED);
+
+    AdvancedLogger::setPrintLevel(LogLevel::VERBOSE);
+    AdvancedLogger::setSaveLevel(LogLevel::FATAL);
+    AdvancedLogger::setMaxLogLines(MAX_LOG_LINES);
+    AdvancedLogger::begin(LOG_FILE_PATH);
 
     ::testing::InitGoogleTest();
 }

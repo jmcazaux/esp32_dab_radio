@@ -23,8 +23,6 @@ void setup() {
         Serial.println("An Error has occurred while mounting LittleFS");
     }
 
-    AdvancedLogger::begin(LOG_FILE_PATH);
-
     AdvancedLogger::setPrintLevel(LogLevel::VERBOSE);
     AdvancedLogger::setSaveLevel(LogLevel::FATAL);
     AdvancedLogger::setMaxLogLines(MAX_LOG_LINES);
@@ -51,6 +49,6 @@ void setup() {
 
 void loop() {
     LOG_DEBUG("Starting main loop");
-    display->loop();
+    display->tick(millis());
     delay(250);
 }
