@@ -30,15 +30,15 @@ class Display {
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.
     // `cycle` is used in case of a rolling alignment and can be an ever increasing int.
-    void padOrTrim(char source[], char destination[], int size, DisplayAlignment align, long cycle);
+    void padOrTrim(char source[], char destination[],uint8_t size, DisplayAlignment align, long cycle);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`
-    void padOrTrim(char source[], char destination[], int size, DisplayAlignment align) {
+    void padOrTrim(char source[], char destination[],uint8_t size, DisplayAlignment align) {
         padOrTrim(source, destination, size, align, 0);
     };
 
    private:
-    void trim(char source[], char destination[], int size, DisplayAlignment align);
-    void pad(char source[], char destination[], int size, DisplayAlignment align);
-    void rollLeft(char source[], char destination[], int size, long cycle);
+    void trim(char source[], char destination[],uint8_t size, DisplayAlignment align);
+    void pad(char source[], char destination[],uint8_t size, DisplayAlignment align);
+    void rollLeft(char source[], char destination[],uint8_t size, long cycle);
 };

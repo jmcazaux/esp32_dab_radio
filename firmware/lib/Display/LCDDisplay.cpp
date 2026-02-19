@@ -4,23 +4,24 @@
 #include <LiquidCrystal_I2C.h>
 #include <string.h>
 
-const long CYCLE_INTERVAL = 100;
+const long CYCLE_INTERVAL = 300;
 
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");
     lcd = new LiquidCrystal_I2C(lcdAddr, lcdColumns, lcdRows);
+
     nbColumns = lcdColumns;
     nbLines = lcdRows;
 
     lines = (char**)malloc(sizeof(char*) * nbLines);
     uint8_t i;
-    for (i = 0; i < nbColumns; i++) {
+    for (i = 0; i < nbLines; i++) {
         lines[i] = (char*)malloc(sizeof(char) * nbColumns + 1);
     }
 
     displaySources = new DisplaySource[lcdRows];
-
     LOG_DEBUG("Initializing LCDDisplay...");
+    lcd->init();
     lcd->noAutoscroll();
     switchOff();
 }
@@ -43,7 +44,7 @@ void LCDDisplay::clear() {
 
 void LCDDisplay::clearLine(u_int8_t line) {
     if (line >= nbLines) {
-        LOG_ERROR("Cannot clear line %d (only %d lines)... Ignoring.", line, nbLines);
+        LOG_WARNING("Cannot clear line %d (only %d lines)... Ignoring.", line, nbLines);
         return;
     }
 
@@ -54,18 +55,23 @@ void LCDDisplay::clearLine(u_int8_t line) {
 }
 
 void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) {
-    LOG_DEBUG("Displaying line \"%s\" at line %d", text, line);
+    if (line >= nbLines) {
+        LOG_WARNING("Cannot display line %d (only %d lines)... Ignoring.", line, nbLines);
+        return;
+    }
+
+    LOG_INFO("Displaying line \"%s\" at line %d", text, line);
 
     displaySources[line].setSource(text, align);
 
-    lcd->setCursor(0, line);
     this->padOrTrim(text, lines[line], nbColumns, align);
     LOG_DEBUG("|> %s <|", lines[line]);
+    lcd->setCursor(0, line);
     lcd->print(lines[line]);
 }
 
 void LCDDisplay::tick(unsigned long millis) {
-    if ((millis + CYCLE_INTERVAL) > lastCycleTime) {
+    if (millis < lastCycleTime + CYCLE_INTERVAL) {
         return;
     }
 
@@ -73,10 +79,11 @@ void LCDDisplay::tick(unsigned long millis) {
 
     uint8_t i;
     for (i = 0; i < nbLines; i++) {
-        DisplaySource source = displaySources[i];
-        if (source.alignment == ROLLING_LEFT) {
-            source.rollingIndex++;
-            this->padOrTrim(source.source(), lines[i], nbColumns, source.alignment, source.rollingIndex);
+        DisplaySource* source = &displaySources[i];
+        if (source->alignment == ROLLING_LEFT) {
+            source->rollingIndex++;
+            this->padOrTrim(source->source(), lines[i], nbColumns, source->alignment, source->rollingIndex);
+            lcd->setCursor(0, i);
             lcd->print(lines[i]);
         }
     }

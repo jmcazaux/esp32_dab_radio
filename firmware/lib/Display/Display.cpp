@@ -35,7 +35,7 @@ void Display::displayLine(char text[], uint8_t line) {
     displayLine(text, line, DisplayAlignment::LEFT);
 };
 
-void Display::padOrTrim(char source[], char destination[], int size, DisplayAlignment align, long cycle) {
+void Display::padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle) {
     if ((align == ROLLING_LEFT || align == ROLLING_RIGHT) && cycle < 0) {
         throw std::invalid_argument("'cycle' must be provided for rolling alignments");
     }
@@ -49,7 +49,7 @@ void Display::padOrTrim(char source[], char destination[], int size, DisplayAlig
     }
 };
 
-void Display::pad(char source[], char destination[], int size, DisplayAlignment align) {
+void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
 
     switch (align) {
@@ -82,7 +82,7 @@ void Display::pad(char source[], char destination[], int size, DisplayAlignment 
     destination[size] = '\0';
 }
 
-void Display::rollLeft(char source[], char destination[], int size, long cycle) {
+void Display::rollLeft(char source[], char destination[], uint8_t size, long cycle) {
     int sourceLength = strlen(source);
     int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
     int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
@@ -120,7 +120,7 @@ void Display::rollLeft(char source[], char destination[], int size, long cycle) 
     destination[size] = '\0';
 }
 
-void Display::trim(char source[], char destination[], int size, DisplayAlignment align) {
+void Display::trim(char source[], char destination[], uint8_t size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
     switch (align) {
         case RIGHT: {

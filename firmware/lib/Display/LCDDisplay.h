@@ -17,7 +17,6 @@ class LCDDisplay : public Display {
     void displayLine(char text[], uint8_t line, DisplayAlignment align);
 
    private:
-    void init();
     LiquidCrystal_I2C* lcd = NULL;
     u_int8_t nbColumns;
     u_int8_t nbLines;
@@ -32,10 +31,12 @@ class LCDDisplay : public Display {
         DisplayAlignment alignment;
         uint8_t rollingIndex;
 
+
         DisplaySource() : alignment{LEFT},
                           rollingIndex{0},
                           _source{nullptr} {
         }
+
 
         void setSource(char* source, DisplayAlignment align);
         void setSource(char* source);
