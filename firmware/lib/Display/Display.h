@@ -5,7 +5,7 @@
 enum DisplayAlignment {
     RIGHT,          // Aligned to the right, might be truncated
     LEFT,           // Aligned to the left, first characters might be removed
-    CENTER,         // Text centered, characters might be removed both at the begining and the end
+    CENTER,         // Text centered, characters might be removed both at the beginning and the end
     JUSTIFY,        // Text is justified to stick to both left and right edges. Spaces might be added in between words, characters might be removed
     ROLLING_LEFT,   // Text will roll to the left
     ROLLING_RIGHT,  // Text will roll to the right
