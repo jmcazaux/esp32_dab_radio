@@ -54,7 +54,7 @@ void LCDDisplay::clearLine(u_int8_t line) {
     }
 }
 
-void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) {
+void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment align) {
     if (line >= nbLines) {
         LOG_WARNING("Cannot display line %d (only %d lines)... Ignoring.", line, nbLines);
         return;
@@ -89,12 +89,12 @@ void LCDDisplay::tick(unsigned long millis) {
     }
 }
 
-void LCDDisplay::DisplaySource::setSource(char* source, DisplayAlignment align) {
+void LCDDisplay::DisplaySource::setSource(const char* source, DisplayAlignment align) {
     alignment = align;
     setSource(source);
 }
 
-void LCDDisplay::DisplaySource::setSource(char* source) {
+void LCDDisplay::DisplaySource::setSource(const char* source) {
     if (_source != NULL) {
         free(_source);
     }

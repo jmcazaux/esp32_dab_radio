@@ -23,22 +23,22 @@ class Display {
     virtual void tick(unsigned long currentMillis) {};
 
     // Display `text` on line `line`, with default alignment RIGHT
-    void displayLine(char text[], uint8_t line);
+    void displayLine(const char text[], uint8_t line);
 
     // Display `text` on line `line`, with alignment `align`
-    virtual void displayLine(char text[], uint8_t line, DisplayAlignment align) {};
+    virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align) {};
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.
     // `cycle` is used in case of a rolling alignment and can be an ever increasing int.
-    void padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle);
+    void padOrTrim(const char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`
-    void padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align) {
+    void padOrTrim(const char source[], char destination[], uint8_t size, DisplayAlignment align) {
         padOrTrim(source, destination, size, align, 0);
     };
 
    private:
-    void trim(char source[], char destination[], uint8_t size, DisplayAlignment align);
-    void pad(char source[], char destination[], uint8_t size, DisplayAlignment align);
-    void rollLeft(char source[], char destination[], uint8_t size, long cycle);
+    void trim(const char source[], char destination[], uint8_t size, DisplayAlignment align);
+    void pad(const char source[], char destination[], uint8_t size, DisplayAlignment align);
+    void rollLeft(const char source[], char destination[], uint8_t size, long cycle);
 };

@@ -37,16 +37,16 @@ void setup() {
     LOG_DEBUG("Initializing display...");
     display = new LCDDisplay(0x27, 20, 4);
     display->switchOn();
-    display->displayLine(R"(Philips BF501 Redux)", 0, LEFT);
-    display->displayLine(R"(Starting systems...)", 1, LEFT);
+    display->displayLine("Philips BF501 Redux", 0, LEFT);
+    display->displayLine("Starting systems...", 1, LEFT);
     display->displayLine(versionString, 2, CENTER);
     delay(2000);
 
     // Testing display
     display->clearLine(1);
     display->clearLine(2);
-    display->displayLine(R"(France Inter)", 2, CENTER);
-    display->displayLine(R"(La plus grande matinale de France avec Florence Paracuellos)", 3, ROLLING_LEFT);
+    display->displayLine("France Inter)", 2, CENTER);
+    display->displayLine("La plus grande matinale de France avec Florence Paracuellos", 3, ROLLING_LEFT);
 
     LOG_INFO("Systems initialized");
 }

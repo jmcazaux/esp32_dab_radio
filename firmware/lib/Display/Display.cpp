@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <string.h>
 
-void prefixAndSuffixStringWithSpaces(char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
+void prefixAndSuffixStringWithSpaces(const char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
     uint8_t i;
 
     for (i = 0; i < prefixLength; i++) {
@@ -21,7 +21,7 @@ void prefixAndSuffixStringWithSpaces(char source[], char destination[], uint8_t 
     }
 }
 
-void copySubstring(char source[], char destination[], uint8_t from, uint8_t length) {
+void copySubstring(const char source[], char destination[], uint8_t from, uint8_t length) {
     uint8_t i;
 
     for (i = 0; i < length && i + from < strlen(source); i++) {
@@ -29,11 +29,11 @@ void copySubstring(char source[], char destination[], uint8_t from, uint8_t leng
     }
 }
 
-void Display::displayLine(char text[], uint8_t line) {
+void Display::displayLine(const char text[], uint8_t line) {
     displayLine(text, line, DisplayAlignment::LEFT);
 };
 
-void Display::padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle) {
+void Display::padOrTrim(const char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle) {
     if ((align == ROLLING_LEFT || align == ROLLING_RIGHT) && cycle < 0) {
         LOG_ERROR("'cycle' must be provided for rolling alignments");
         return padOrTrim("#ERROR", destination, size, LEFT);
@@ -48,7 +48,7 @@ void Display::padOrTrim(char source[], char destination[], uint8_t size, Display
     }
 };
 
-void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignment align) {
+void Display::pad(const char source[], char destination[], uint8_t size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
 
     switch (align) {
@@ -81,7 +81,7 @@ void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignm
     destination[size] = '\0';
 }
 
-void Display::rollLeft(char source[], char destination[], uint8_t size, long cycle) {
+void Display::rollLeft(const char source[], char destination[], uint8_t size, long cycle) {
     int sourceLength = strlen(source);
     int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
     int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
@@ -119,7 +119,7 @@ void Display::rollLeft(char source[], char destination[], uint8_t size, long cyc
     destination[size] = '\0';
 }
 
-void Display::trim(char source[], char destination[], uint8_t size, DisplayAlignment align) {
+void Display::trim(const char source[], char destination[], uint8_t size, DisplayAlignment align) {
     uint8_t sourceLength = strlen(source);
     switch (align) {
         case RIGHT: {
@@ -141,7 +141,7 @@ void Display::trim(char source[], char destination[], uint8_t size, DisplayAlign
 
         default: {
             LOG_ERROR("Alignment not implemented yet (ordinal %d)", align);
-            strcpy(destination, "Not implemented");
+            strcpy(destination, "#ERROR");
             break;
         }
     }
