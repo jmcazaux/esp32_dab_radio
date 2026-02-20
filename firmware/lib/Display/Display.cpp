@@ -5,8 +5,6 @@
 #include <Arduino.h>
 #include <string.h>
 
-#include <stdexcept>
-
 void prefixAndSuffixStringWithSpaces(char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
     uint8_t i;
 
@@ -37,7 +35,8 @@ void Display::displayLine(char text[], uint8_t line) {
 
 void Display::padOrTrim(char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle) {
     if ((align == ROLLING_LEFT || align == ROLLING_RIGHT) && cycle < 0) {
-        throw std::invalid_argument("'cycle' must be provided for rolling alignments");
+        LOG_ERROR("'cycle' must be provided for rolling alignments");
+        return padOrTrim("#ERROR", destination, size, LEFT);
     }
 
     if (align == ROLLING_LEFT) {
@@ -74,7 +73,7 @@ void Display::pad(char source[], char destination[], uint8_t size, DisplayAlignm
 
         default: {
             LOG_ERROR("Alignment not implemented yet (ordinal %d)", align);
-            strcpy(destination, "Not implmented");
+            strcpy(destination, "Not implemented");
             break;
         }
     }
@@ -142,7 +141,7 @@ void Display::trim(char source[], char destination[], uint8_t size, DisplayAlign
 
         default: {
             LOG_ERROR("Alignment not implemented yet (ordinal %d)", align);
-            strcpy(destination, "Not implmented");
+            strcpy(destination, "Not implemented");
             break;
         }
     }

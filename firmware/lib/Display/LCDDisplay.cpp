@@ -4,7 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <string.h>
 
-const long CYCLE_INTERVAL = 300;
+constexpr long ROLLING_TEXT_UPDATE_INTERVAL_MS = 300;
 
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");
@@ -13,10 +13,10 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     nbColumns = lcdColumns;
     nbLines = lcdRows;
 
-    lines = (char**)malloc(sizeof(char*) * nbLines);
+    lines = new char*[nbLines];
     uint8_t i;
     for (i = 0; i < nbLines; i++) {
-        lines[i] = (char*)malloc(sizeof(char) * nbColumns + 1);
+        lines[i] = new char[nbColumns + 1];
     }
 
     displaySources = new DisplaySource[lcdRows];
@@ -71,7 +71,7 @@ void LCDDisplay::displayLine(char text[], uint8_t line, DisplayAlignment align) 
 }
 
 void LCDDisplay::tick(unsigned long millis) {
-    if (millis < lastCycleTime + CYCLE_INTERVAL) {
+    if (millis < lastCycleTime + ROLLING_TEXT_UPDATE_INTERVAL_MS) {
         return;
     }
 
