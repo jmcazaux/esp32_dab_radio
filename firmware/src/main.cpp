@@ -45,7 +45,7 @@ void setup() {
     // Testing display
     display->clearLine(1);
     display->clearLine(2);
-    display->displayLine("France Inter)", 2, CENTER);
+    display->displayLine("France Inter", 2, CENTER);
     display->displayLine("La plus grande matinale de France avec Florence Paracuellos", 3, ROLLING_LEFT);
 
     LOG_INFO("Systems initialized");
