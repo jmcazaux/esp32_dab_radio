@@ -6,25 +6,21 @@
 #include <string.h>
 
 void prefixAndSuffixStringWithSpaces(const char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
-    uint8_t i;
-
-    for (i = 0; i < prefixLength; i++) {
+    for (uint8_t i = 0; i < prefixLength; i++) {
         destination[i] = ' ';
     }
 
-    for (i = 0; i < strlen(source); i++) {
+    for (uint8_t i = 0; i < strlen(source); i++) {
         destination[prefixLength + i] = source[i];
     }
 
-    for (i = 0; i < suffixLength; i++) {
+    for (uint8_t i = 0; i < suffixLength; i++) {
         destination[prefixLength + strlen(source) + i] = ' ';
     }
 }
 
 void copySubstring(const char source[], char destination[], uint8_t from, uint8_t length) {
-    uint8_t i;
-
-    for (i = 0; i < length && i + from < strlen(source); i++) {
+    for (uint8_t i = 0; i < length && i + from < strlen(source); i++) {
         destination[i] = source[from + i];
     }
 }
@@ -85,7 +81,6 @@ void Display::rollLeft(const char source[], char destination[], uint8_t size, lo
     int sourceLength = strlen(source);
     int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
     int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
-    int i;
 
     if (sourceFrom < sourceLength) {
         // "Foobar" -> "bar     " || "r      F"
@@ -94,7 +89,7 @@ void Display::rollLeft(const char source[], char destination[], uint8_t size, lo
         copySubstring(source, destination, sourceFrom, min(sourceLength - sourceFrom, int(size)));
 
         // "bar      "
-        for (i = sourceLength - sourceFrom; i < size; i++) {
+        for (uint8_t i = sourceLength - sourceFrom; i < size; i++) {
             destination[i] = ' ';
         }
 
@@ -106,12 +101,12 @@ void Display::rollLeft(const char source[], char destination[], uint8_t size, lo
     } else {
         // "    Foob" || " Foobar "
         // "        "
-        for (i = 0; i < size; i++) {
+        for (uint8_t i = 0; i < size; i++) {
             destination[i] = ' ';
         }
 
         // "    Foob"
-        for (i = 0; i < sourceLength && (apparentLength - sourceFrom + i) < size; i++) {
+        for (uint8_t i = 0; i < sourceLength && (apparentLength - sourceFrom + i) < size; i++) {
             destination[apparentLength - sourceFrom + i] = source[i];
         }
     }
@@ -135,7 +130,6 @@ void Display::trim(const char source[], char destination[], uint8_t size, Displa
         case CENTER: {
             uint8_t copyFrom = (sourceLength - size) / 2;
             copySubstring(source, destination, copyFrom, size);
-            ;
             break;
         }
 

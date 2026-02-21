@@ -8,13 +8,13 @@ class LCDDisplay : public Display {
    public:
     LCDDisplay(uint8_t lcd_Addr, uint8_t lcd_cols, uint8_t lcd_rows);
 
-    void clear();
-    void clearLine(u_int8_t line);
-    void switchOn();
-    void switchOff();
-    void tick(unsigned long millis);
+    void clear() override;
+    void clearLine(u_int8_t line) override;
+    void switchOn() override;
+    void switchOff() override;
+    void tick(unsigned long millis) override;
 
-    void displayLine(const char text[], uint8_t line, DisplayAlignment align);
+    void displayLine(const char text[], uint8_t line, DisplayAlignment align) override;
 
    private:
     LiquidCrystal_I2C* lcd = NULL;
