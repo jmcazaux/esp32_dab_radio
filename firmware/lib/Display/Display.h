@@ -13,20 +13,20 @@ enum DisplayAlignment {
 
 class Display {
    public:
-    virtual void clear() {};                  // Clear the display
-    virtual void clearLine(uint8_t line) {};  // Clear line `line`
+    virtual void clear() {};               // Clear the display
+    virtual void clearLine(uint8_t line);  // Clear line `line`
 
-    virtual void switchOn() {};   // Switch the display on
-    virtual void switchOff() {};  // Switch the display off
+    virtual void switchOn();   // Switch the display on
+    virtual void switchOff();  // Switch the display off
 
     // To be called in each main loop (used in scrolling, refresh, etc.)
-    virtual void tick(unsigned long currentMillis) {};
+    virtual void tick(unsigned long currentMillis);
 
     // Display `text` on line `line`, with default alignment RIGHT
     void displayLine(const char text[], uint8_t line);
 
     // Display `text` on line `line`, with alignment `align`
-    virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align) {};
+    virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.
     // `cycle` is used in case of a rolling alignment and can be an ever increasing int.

@@ -14,8 +14,7 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     nbLines = lcdRows;
 
     lines = new char*[nbLines];
-    uint8_t i;
-    for (i = 0; i < nbLines; i++) {
+    for(uint8_t i = 0; i < nbLines; i++) {
         lines[i] = new char[nbColumns + 1];
     }
 
@@ -23,7 +22,7 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Initializing LCDDisplay...");
     lcd->init();
     lcd->noAutoscroll();
-    switchOff();
+    this->switchOff();
 }
 
 void LCDDisplay::switchOn() {
@@ -77,8 +76,7 @@ void LCDDisplay::tick(unsigned long millis) {
 
     lastCycleTime = millis;
 
-    uint8_t i;
-    for (i = 0; i < nbLines; i++) {
+    for(uint8_t i = 0; i < nbLines; i++) {
         DisplaySource* source = &displaySources[i];
         if (source->alignment == ROLLING_LEFT) {
             source->rollingIndex++;
