@@ -93,7 +93,7 @@ void LCDDisplay::DisplaySource::setSource(const char* source, DisplayAlignment a
 }
 
 void LCDDisplay::DisplaySource::setSource(const char* source) {
-    if (_source != NULL) {
+    if (_source != nullptr) {
         free(_source);
     }
 
