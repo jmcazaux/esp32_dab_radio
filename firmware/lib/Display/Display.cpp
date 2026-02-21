@@ -6,23 +6,21 @@
 #include <string.h>
 
 void prefixAndSuffixStringWithSpaces(const char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
-
-    for(uint8_t i = 0; i < prefixLength; i++) {
+    for (uint8_t i = 0; i < prefixLength; i++) {
         destination[i] = ' ';
     }
 
-    for(uint8_t i = 0; i < strlen(source); i++) {
+    for (uint8_t i = 0; i < strlen(source); i++) {
         destination[prefixLength + i] = source[i];
     }
 
-    for(uint8_t i = 0; i < suffixLength; i++) {
+    for (uint8_t i = 0; i < suffixLength; i++) {
         destination[prefixLength + strlen(source) + i] = ' ';
     }
 }
 
 void copySubstring(const char source[], char destination[], uint8_t from, uint8_t length) {
-
-    for(uint8_t i = 0; i < length && i + from < strlen(source); i++) {
+    for (uint8_t i = 0; i < length && i + from < strlen(source); i++) {
         destination[i] = source[from + i];
     }
 }
@@ -103,12 +101,12 @@ void Display::rollLeft(const char source[], char destination[], uint8_t size, lo
     } else {
         // "    Foob" || " Foobar "
         // "        "
-        for(uint8_t i = 0; i < size; i++) {
+        for (uint8_t i = 0; i < size; i++) {
             destination[i] = ' ';
         }
 
         // "    Foob"
-        for(uint8_t i = 0; i < sourceLength && (apparentLength - sourceFrom + i) < size; i++) {
+        for (uint8_t i = 0; i < sourceLength && (apparentLength - sourceFrom + i) < size; i++) {
             destination[apparentLength - sourceFrom + i] = source[i];
         }
     }
@@ -132,7 +130,6 @@ void Display::trim(const char source[], char destination[], uint8_t size, Displa
         case CENTER: {
             uint8_t copyFrom = (sourceLength - size) / 2;
             copySubstring(source, destination, copyFrom, size);
-            ;
             break;
         }
 
