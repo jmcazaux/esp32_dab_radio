@@ -59,12 +59,11 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
         return;
     }
 
-    LOG_INFO("Displaying line \"%s\" at line %d", text, line);
+    LOG_DEBUG("Displaying line \"%s\" at line %d", text, line);
 
     displaySources[line].setSource(text, align);
 
     this->padOrTrim(text, lines[line], nbColumns, align);
-    LOG_DEBUG("|> %s <|", lines[line]);
     lcd->setCursor(0, line);
     lcd->print(lines[line]);
 }

@@ -17,16 +17,16 @@
 #define SELECTOR_ENCODER_CLK 17  // to CLK pin of the mode selector rotary encoder
 
 // Logging related
-const char* LOG_FILE_PATH = "/internal/log.txt";
-const ulong MAX_LOG_LINES = 500;
+constexpr char* LOG_FILE_PATH = "/internal/log.txt";
+constexpr ulong MAX_LOG_LINES = 500;
 
 // Delays & timings
-const ulong SWITCH_SOURCE_DELAY = 400;  // Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
-
+constexpr ulong SWITCH_SOURCE_DELAY = 400;      // Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
+constexpr ulong SELECT_SOURCE_MIN_DELAY = 150;  // Delay between 2 changes of the selected source (avoid two many changes when rotating the knob fast)
 Display* display;
 
 static const char RADIO_FM[] = "Radio FM";
-static const char RADIO_DAB[] = "Radio DAB";
+static const char RADIO_DAB[] = "Radio DAB+";
 static const char BLUETOOTH[] = "Bluetooth";
 
 AudioSource fm = AudioSource(RADIO_FM);
@@ -37,8 +37,8 @@ AudioSource sources[] = {fm, dab, bluetooth};
 uint8_t nbSources = std::size(sources);
 
 uint8_t currentSource = 0;
-int selectedSource = -1;
-long selectedSourceTime = millis();
+int selectedSource = currentSource;
+long selectedSourceTime = 0;
 
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 
@@ -91,29 +91,28 @@ void loop() {
     display->tick(millis());
     selectorEncoder.tick();
 
-
     int newPos = selectorEncoder.getPosition();
     if (selectorPosition != newPos) {
-        selectedSource = (newPos / 2) % nbSources;
-        // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
-        selectedSource = (selectedSource < 0 ? selectedSource + nbSources : selectedSource);
-        selectedSourceTime = millis();
         selectorPosition = newPos;
+        if (selectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
+            int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
+            selectedSource = (selectedSource + step) % nbSources;  // Keep in [0..nbSources]
+            // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
+            selectedSource = (selectedSource < 0 ? selectedSource + nbSources : selectedSource);
+            selectedSourceTime = millis();
 
-        LOG_INFO("Selecting source #%d (pos %d)", selectedSource, selectorPosition);
+            LOG_INFO("Selecting source #%d - %s", selectedSource, sources[selectedSource].name);
 
-        display->displayLine(sources[selectedSource].name, 0);
+            display->displayLine(sources[selectedSource].name, 0);
+        }
     }
 
-    if (selectedSource >= 0 && (selectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
+    if (selectedSource != currentSource && (selectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
         currentSource = selectedSource;
-        selectedSource = -1;
         selectedSourceTime = 0;
-
         display->displayLine(sources[currentSource].name, 0);
-        LOG_INFO("Switched to source %d", currentSource);
+        LOG_INFO("Switched to source #%d - %s", currentSource, sources[selectedSource].name);
     }
-
 
     delay(10);
 }
