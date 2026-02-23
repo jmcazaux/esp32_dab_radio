@@ -59,8 +59,6 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
         return;
     }
 
-    LOG_DEBUG("Displaying line \"%s\" at line %d", text, line);
-
     displaySources[line].setSource(text, align);
 
     this->padOrTrim(text, lines[line], nbColumns, align);

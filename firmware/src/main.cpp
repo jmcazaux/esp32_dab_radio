@@ -1,9 +1,14 @@
 #include <AdvancedLogger.h>
 #include <Arduino.h>
 #include <AudioSource.h>
+#include <Bluetooth.h>
+#include <DABRadio.h>
+#include <DABShield.h>
 #include <Display.h>
+#include <FMRadio.h>
 #include <LCDDisplay.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include <RotaryEncoder.h>
 
 #include <string>
@@ -22,28 +27,29 @@ constexpr ulong MAX_LOG_LINES = 500;
 
 // Delays & timings
 constexpr ulong SWITCH_SOURCE_DELAY = 400;      // Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
-constexpr ulong SELECT_SOURCE_MIN_DELAY = 150;  // Delay between 2 changes of the selected source (avoid two many changes when rotating the knob fast)
-Display* display;
+constexpr ulong SELECT_SOURCE_MIN_DELAY = 200;  // Delay between 2 changes of the selected source (avoid two many changes when rotating the knob fast)
 
-static const char RADIO_FM[] = "Radio FM";
-static const char RADIO_DAB[] = "Radio DAB+";
-static const char BLUETOOTH[] = "Bluetooth";
+// Preferences
+constexpr char GENERAL_PREF_NAMESPACE[] = "general";
+constexpr char PREVIOUS_SOURCE_KEY[] = "previousSource";
+Preferences preferences;
 
-AudioSource fm = AudioSource(RADIO_FM);
-AudioSource dab = AudioSource(RADIO_DAB);
-AudioSource bluetooth = AudioSource(BLUETOOTH);
-
-AudioSource sources[] = {fm, dab, bluetooth};
-uint8_t nbSources = std::size(sources);
+// Sources
+constexpr int nbSources = 3;
+AudioSource* sources[nbSources];
 
 uint8_t currentSource = 0;
 int selectedSource = currentSource;
 long selectedSourceTime = 0;
 
+// Devices
+DAB dab;
+Display* display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 
 void setup() {
     Serial.begin(MONITOR_SPEED);
+    preferences.begin(GENERAL_PREF_NAMESPACE, false);
 
     // Initialize the logger
     if (!LittleFS.begin(true)) {
@@ -58,11 +64,6 @@ void setup() {
     LOG_INFO("Initializing systems...");
     LOG_INFO("*** Version %s ***", STR(VERSION));
 
-    LOG_INFO("Initializing Audio sources: ");
-    for (u_int8_t i = 0; i < nbSources; i++) {
-        LOG_INFO(" -> #%d: %s", i + 1, sources[i].name);
-    }
-
     char versionString[30];
     sprintf(versionString, "* Version %s *", STR(VERSION));
 
@@ -72,16 +73,30 @@ void setup() {
     display->displayLine("Philips BF501 Redux", 0, LEFT);
     display->displayLine("Starting systems...", 1, LEFT);
     display->displayLine(versionString, 2, CENTER);
-    delay(2000);
+
+    LOG_DEBUG("Initilizing audio sources...");
+    sources[0] = new FMRadio(display, &dab);
+    sources[1] = new DABRadio(display, &dab);
+    sources[2] = new Bluetooth(display);
+
+    LOG_INFO("Initialized Audio sources: ");
+    for (u_int8_t i = 0; i < nbSources; i++) {
+        LOG_INFO(" -> #%d: %s", i, sources[i]->name);
+    }
+
+    delay(800);
 
     // Testing display
     display->clearLine(1);
-    display->clearLine(2);
     display->displayLine("France Inter", 2, CENTER);
     display->displayLine("La plus grande matinale de France avec Florence Paracuellos", 3, ROLLING_LEFT);
 
+    // Restoring previous souce
+    currentSource = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources;  // Just to make sure
+    selectedSource = currentSource;
+    sources[currentSource]->activate();
+
     LOG_INFO("Systems initialized");
-    display->displayLine(sources[currentSource].name, 0);
 }
 
 void loop() {
@@ -101,17 +116,24 @@ void loop() {
             selectedSource = (selectedSource < 0 ? selectedSource + nbSources : selectedSource);
             selectedSourceTime = millis();
 
-            LOG_INFO("Selecting source #%d - %s", selectedSource, sources[selectedSource].name);
+            LOG_INFO("Selecting source #%d - %s", selectedSource, sources[selectedSource]->name);
 
-            display->displayLine(sources[selectedSource].name, 0);
+            display->displayLine(sources[selectedSource]->name, 0);
         }
     }
 
     if (selectedSource != currentSource && (selectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
+        // Deactivating previous source
+        sources[currentSource]->deactivate();
+
+        // Activating new source
         currentSource = selectedSource;
+        display->displayLine(sources[currentSource]->name, 0);
+        sources[currentSource]->activate();
+
+        preferences.putInt(PREVIOUS_SOURCE_KEY, currentSource);
+
         selectedSourceTime = 0;
-        display->displayLine(sources[currentSource].name, 0);
-        LOG_INFO("Switched to source #%d - %s", currentSource, sources[selectedSource].name);
     }
 
     delay(10);

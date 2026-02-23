@@ -22,7 +22,7 @@ class Display {
     // To be called in each main loop (used in scrolling, refresh, etc.)
     virtual void tick(unsigned long currentMillis);
 
-    // Display `text` on line `line`, with default alignment RIGHT
+    // Display `text` on line `line`, with default alignment `LEFT`
     void displayLine(const char text[], uint8_t line);
 
     // Display `text` on line `line`, with alignment `align`
