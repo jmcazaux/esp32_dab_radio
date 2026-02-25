@@ -16,9 +16,13 @@ void AudioSource::activate() {
 
     // Actually activate the source
     display->displayLine(this->name, 0);
+
+    active = true;
     LOG_INFO("Activated source \"%s\"", name);
 };
 
 void AudioSource::deactivate() {
-    LOG_INFO("De-activating source \"%s\"", name);
+    LOG_DEBUG("De-activating source \"%s\"...", name);
+    active = false;
+    LOG_INFO("De-activated source \"%s\"", name);
 };
