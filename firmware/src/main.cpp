@@ -52,6 +52,13 @@ DAB dab;
 Display* display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 
+void logFrequencies() {
+    LOG_DEBUG("Frequencies:");
+    LOG_DEBUG(" > CPU clock:      %dMHz", getCpuFrequencyMhz());
+    LOG_DEBUG(" > ABP frequency:  %dMHz", getApbFrequency() / 1000000);
+    LOG_DEBUG(" > XTAL frequency: %dMHz", getXtalFrequencyMhz());
+}
+
 void switchSource(int fromSourceIdx, int toSourceIdx) {
     AudioSource* toSource = sources[toSourceIdx];
     AudioSource* fromSource = nullptr;
@@ -70,6 +77,7 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
         Serial.flush();  // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
+        logFrequencies();
         LOG_INFO("Set frequency to %ldMhz", frequency);
     }
 
