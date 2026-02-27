@@ -58,6 +58,7 @@ RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryE
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 OneButton selectorButton = OneButton(SELECTOR_ENCODER_SW, true, true);
 OneButton tuneButton = OneButton(TUNE_ENCODER_SW, true, true);
+constexpr uint BUTTON_DOUBLECLICK_DELAY_MS = 300;
 
 void logFrequencies() {
     LOG_DEBUG("Frequencies:");
@@ -166,13 +167,13 @@ void setup() {
     }
 
     LOG_DEBUG("Initializing buttons...");
-    selectorButton.setClickMs(200);
+    selectorButton.setClickMs(BUTTON_DOUBLECLICK_DELAY_MS);
     selectorButton.attachClick(selectorClicked);
     selectorButton.attachDoubleClick(selectorDoubleClicked);
     selectorButton.attachLongPressStart(selectorPressStart);
     selectorButton.attachLongPressStop(selectorPressStopped);
 
-    tuneButton.setClickMs(200);
+    tuneButton.setClickMs(BUTTON_DOUBLECLICK_DELAY_MS);
     tuneButton.attachClick(tuneClicked);
     tuneButton.attachDoubleClick(tuneDoubleClicked);
     tuneButton.attachLongPressStart(tunePressStart);
