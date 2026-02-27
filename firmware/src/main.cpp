@@ -8,6 +8,7 @@
 #include <FMRadio.h>
 #include <LCDDisplay.h>
 #include <LittleFS.h>
+#include <OneButton.h>
 #include <Preferences.h>
 #include <RotaryEncoder.h>
 
@@ -23,6 +24,9 @@
 #define SELECTOR_ENCODER_SW 5    // to SW pin of the mode selector rotary encoder
 #define SELECTOR_ENCODER_DT 16   // to DT pin of the mode selector rotary encoder
 #define SELECTOR_ENCODER_CLK 17  // to CLK pin of the mode selector rotary encoder
+#define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
+#define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
+#define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
 
 // Logging related
 constexpr char LOG_FILE_PATH[] = "/internal/log.txt";
@@ -51,6 +55,9 @@ long selectedSourceTime = 0;
 DAB dab;
 Display* display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
+RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
+OneButton selectorButton = OneButton(SELECTOR_ENCODER_SW, true, true);
+OneButton tuneButton = OneButton(TUNE_ENCODER_SW, true, true);
 
 void logFrequencies() {
     LOG_DEBUG("Frequencies:");
@@ -87,6 +94,38 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
 
     currentSource = toSourceIdx;
     selectedSource = toSourceIdx;
+}
+
+void selectorClicked() {
+    LOG_DEBUG("Selector clicked");
+}
+
+void selectorDoubleClicked() {
+    LOG_DEBUG("Selector double-clicked");
+}
+
+void selectorPressStart() {
+    LOG_DEBUG("Selector long-press started");
+}
+
+void selectorPressStopped() {
+    LOG_DEBUG("Selector long-press stopped");
+}
+
+void tuneClicked() {
+    LOG_DEBUG("Tune clicked");
+}
+
+void tuneDoubleClicked() {
+    LOG_DEBUG("Tune double-clicked");
+}
+
+void tunePressStart() {
+    LOG_DEBUG("Tune long-press started");
+}
+
+void tunePressStopped() {
+    LOG_DEBUG("Tune long-press stopped");
 }
 
 void setup() {
@@ -126,6 +165,20 @@ void setup() {
         LOG_INFO(" -> #%d: %s", i, sources[i]->name);
     }
 
+    LOG_DEBUG("Initializing buttons...");
+    selectorButton.setClickMs(200);
+    selectorButton.attachClick(selectorClicked);
+    selectorButton.attachDoubleClick(selectorDoubleClicked);
+    selectorButton.attachLongPressStart(selectorPressStart);
+    selectorButton.attachLongPressStop(selectorPressStopped);
+
+    tuneButton.setClickMs(200);
+    tuneButton.attachClick(tuneClicked);
+    tuneButton.attachDoubleClick(tuneDoubleClicked);
+    tuneButton.attachLongPressStart(tunePressStart);
+    tuneButton.attachLongPressStop(tunePressStopped);
+    LOG_INFO("Initialized buttons");
+
     delay(800);
 
     // TODO: This is to test display only, remove when actual info can de displayed
@@ -142,14 +195,18 @@ void setup() {
 
 void loop() {
     static int selectorPosition = 0;
+    static int tunerPosition = 0;
 
     // Tick everything that needs ticking
     display->tick(millis());
     selectorEncoder.tick();
+    tuneEncoder.tick();
+    selectorButton.tick();
+    tuneButton.tick();
 
-    int newPos = selectorEncoder.getPosition();
-    if (selectorPosition != newPos) {
-        selectorPosition = newPos;
+    int newSelectorPosition = selectorEncoder.getPosition();
+    if (selectorPosition != newSelectorPosition) {
+        selectorPosition = newSelectorPosition;
         if (selectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
             int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
             selectedSource = (selectedSource + step) % nbSources;  // Keep in [0..nbSources]
@@ -169,6 +226,18 @@ void loop() {
         preferences.putInt(PREVIOUS_SOURCE_KEY, currentSource);
 
         selectedSourceTime = 0;
+    }
+
+    int newTunerPosition = tuneEncoder.getPosition();
+    if (tunerPosition != newTunerPosition) {
+        RotaryEncoder::Direction tuneDirection = tuneEncoder.getDirection();
+        LOG_DEBUG("Tuning %s", tuneDirection == RotaryEncoder::Direction::CLOCKWISE ? "UP" : "DOWN");
+        if (tuneDirection == RotaryEncoder::Direction::CLOCKWISE) {
+            sources[currentSource]->tuneUp();
+        } else {
+            sources[currentSource]->tuneDown();
+        }
+        tunerPosition = newTunerPosition;
     }
 
     delay(10);

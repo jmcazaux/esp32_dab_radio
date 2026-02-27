@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Display.h>
+#include <AdvancedLogger.h>
 
 class AudioSource {
    public:
@@ -11,8 +12,8 @@ class AudioSource {
 
     Display* display;
 
-    virtual void tuneUp() {};
-    virtual void tuneDown() {};
+    virtual void tuneUp() { LOG_DEBUG("Source \"%s\" tuning up.", name); };
+    virtual void tuneDown() { LOG_DEBUG("Source \"%s\" tuning down.", name); };
     virtual void tunePressed() {};
     virtual void tuneLongPressed() {};
     virtual void tuneDoublePressed() {};
@@ -23,10 +24,10 @@ class AudioSource {
         const bool needsBluetooth,
         const bool needsLowCpuFrequency,
         Display* display) : name(name),
-                                  needsRadio(needsRadio),
-                                  needsBluetooth(needsBluetooth),
-                                  needsLowCpuFrequency(needsLowCpuFrequency),
-                                  display(display) {};
+                            needsRadio(needsRadio),
+                            needsBluetooth(needsBluetooth),
+                            needsLowCpuFrequency(needsLowCpuFrequency),
+                            display(display) {};
 
     bool isActive();
     virtual void deactivate();
