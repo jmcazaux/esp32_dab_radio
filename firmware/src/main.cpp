@@ -89,9 +89,27 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
         LOG_INFO("Set frequency to %ldMhz", frequency);
     }
 
-    // TODO: Toggle DAB & Bluetooth
+    // Toggle DAB: doing here to avoid on/off/on when switching from FM to DAB
+    if(fromSource == nullptr || toSource->needsRadio != fromSource->needsRadio) {
+      if (toSource->needsRadio) {
+          LOG_DEBUG("Switching radio ON...");
+          dab.mute(true, true); // Avoid "tuning" noises
+          dab.begin(); // Actual mode set by the AudioSource
+          if (dab.error != 0) {
+              LOG_ERROR("DABShield error: %s", dab.error);
+          }
 
-    toSource->activate();
+          LOG_INFO("Switched radio ON");
+        } else {
+          LOG_DEBUG("Switching radio OFF...");
+          dab.end();
+          LOG_INFO("Switched radio OFF");
+      }
+    }
+
+        // TODO:Bluetooth
+
+        toSource->activate();
 
     currentSource = toSourceIdx;
     selectedSource = toSourceIdx;
@@ -160,6 +178,8 @@ void setup() {
     sources[0] = new FMRadio(display, &dab);
     sources[1] = new DABRadio(display, &dab);
     sources[2] = new Bluetooth(display);
+
+    dab.speaker(SPEAKER_DIFF);
 
     LOG_INFO("Initialized Audio sources: ");
     for (u_int8_t i = 0; i < nbSources; i++) {
