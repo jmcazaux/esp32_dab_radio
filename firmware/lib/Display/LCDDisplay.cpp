@@ -4,7 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <string.h>
 
-constexpr long ROLLING_TEXT_UPDATE_INTERVAL_MS = 300;
+constexpr long ROLLING_TEXT_UPDATE_INTERVAL_MS = 600;
 
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");

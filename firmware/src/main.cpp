@@ -11,6 +11,7 @@
 #include <OneButton.h>
 #include <Preferences.h>
 #include <RotaryEncoder.h>
+#include <SPI.h>
 
 #include <string>
 
@@ -27,6 +28,13 @@
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
+
+#define DAB_SPI_SLAVE_SELECT 12
+//          1.        2.        3.        4.        6.        7.
+// 12345678901234567890123456789012345678901234567890123456789012
+// PORTRAITS DE FAMILLE - FRANCE MUSIQUE                        �
+// 16H-17H LES HISTOIRES D'AMOUR EXTRAORDINAIRES                �
+// LA CONVERSATION SCIENTIFIQUE - FRANCE CULTURE
 
 // Logging related
 constexpr char LOG_FILE_PATH[] = "/internal/log.txt";
@@ -47,9 +55,9 @@ constexpr int LOW_CPU_CLOCK_MHZ = 40;
 constexpr int nbSources = 3;
 AudioSource* sources[nbSources];
 
-uint8_t currentSource = 0;
-int selectedSource = currentSource;
-long selectedSourceTime = 0;
+uint8_t currentSourceIndex = 0;
+int selectedSourceIndex = currentSourceIndex;
+long lastSelectedSourceTime = 0;
 
 // Devices
 DAB dab;
@@ -65,6 +73,50 @@ void logFrequencies() {
     LOG_DEBUG(" > CPU clock:      %dMHz", getCpuFrequencyMhz());
     LOG_DEBUG(" > ABP frequency:  %dMHz", getApbFrequency() / 1000000);
     LOG_DEBUG(" > XTAL frequency: %dMHz", getXtalFrequencyMhz());
+}
+
+void serviceData(void) {
+    LOG_DEBUG("Got service data (current source is %d)", currentSourceIndex);
+    if (currentSourceIndex == 1) {
+        Serial.print(dab.ServiceData);
+        Serial.print(F("\n"));
+    } else {
+        char statusstring[144];
+
+        sprintf_P(statusstring, PSTR("%02d/%02d/%04d "), dab.Days, dab.Months, dab.Year);
+        Serial.print(statusstring);
+        sprintf_P(statusstring, PSTR("%02d:%02d "), dab.Hours, dab.Minutes);
+        Serial.print(statusstring);
+        sprintf_P(statusstring, PSTR("PS: \"%s\" "), dab.ps);
+        Serial.print(statusstring);
+        sprintf_P(statusstring, PSTR("Service data: \"%s\"\n"), dab.ServiceData);
+        Serial.print(statusstring);
+    }
+}
+
+void DABSpiMsg(unsigned char* data, uint32_t len) {
+    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));  // 2MHz for starters...
+    digitalWrite(DAB_SPI_SLAVE_SELECT, LOW);
+    SPI.transfer(data, len);
+    digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
+    SPI.endTransaction();
+}
+
+void enableRadio() {
+    LOG_DEBUG("Switching radio ON...");
+    dab.setCallback(serviceData);
+    dab.mute(true, true);  // Avoid "tuning" noises
+    dab.begin(1);          // Actual mode set by the AudioSource
+    if (dab.error != 0) {
+        LOG_ERROR("DABShield error: %s", dab.error);
+    }
+    LOG_INFO("Switched radio ON");
+}
+
+void disableRadio() {
+    LOG_DEBUG("Switching radio OFF...");
+    dab.end();
+    LOG_INFO("Switched radio OFF");
 }
 
 void switchSource(int fromSourceIdx, int toSourceIdx) {
@@ -90,29 +142,20 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
     }
 
     // Toggle DAB: doing here to avoid on/off/on when switching from FM to DAB
-    if(fromSource == nullptr || toSource->needsRadio != fromSource->needsRadio) {
-      if (toSource->needsRadio) {
-          LOG_DEBUG("Switching radio ON...");
-          dab.mute(true, true); // Avoid "tuning" noises
-          dab.begin(); // Actual mode set by the AudioSource
-          if (dab.error != 0) {
-              LOG_ERROR("DABShield error: %s", dab.error);
-          }
-
-          LOG_INFO("Switched radio ON");
+    if (fromSource == nullptr || toSource->needsRadio != fromSource->needsRadio) {
+        if (toSource->needsRadio) {
+            enableRadio();
         } else {
-          LOG_DEBUG("Switching radio OFF...");
-          dab.end();
-          LOG_INFO("Switched radio OFF");
-      }
+            disableRadio();
+        }
     }
 
-        // TODO:Bluetooth
+    // TODO:Bluetooth
 
-        toSource->activate();
+    toSource->activate();
 
-    currentSource = toSourceIdx;
-    selectedSource = toSourceIdx;
+    currentSourceIndex = toSourceIdx;
+    selectedSourceIndex = toSourceIdx;
 }
 
 void selectorClicked() {
@@ -133,14 +176,17 @@ void selectorPressStopped() {
 
 void tuneClicked() {
     LOG_DEBUG("Tune clicked");
+    sources[currentSourceIndex]->tunePressed();
 }
 
 void tuneDoubleClicked() {
     LOG_DEBUG("Tune double-clicked");
+    sources[currentSourceIndex]->tuneDoublePressed();
 }
 
 void tunePressStart() {
     LOG_DEBUG("Tune long-press started");
+    sources[currentSourceIndex]->tuneLongPressed();
 }
 
 void tunePressStopped() {
@@ -179,6 +225,9 @@ void setup() {
     sources[1] = new DABRadio(display, &dab);
     sources[2] = new Bluetooth(display);
 
+    pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);
+    digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
+    SPI.begin();
     dab.speaker(SPEAKER_DIFF);
 
     LOG_INFO("Initialized Audio sources: ");
@@ -208,8 +257,8 @@ void setup() {
     display->displayLine("La plus grande matinale de France avec Florence Paracuellos", 3, ROLLING_LEFT);
 
     // Restoring previous souce
-    currentSource = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources;  // Just to make sure
-    switchSource(-1, currentSource);
+    currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources;  // Just to make sure
+    switchSource(-1, currentSourceIndex);
 
     LOG_INFO("Systems initialized");
 }
@@ -225,28 +274,32 @@ void loop() {
     selectorButton.tick();
     tuneButton.tick();
 
+    if (sources[currentSourceIndex]->needsRadio) {
+        dab.task();
+    }
+
     int newSelectorPosition = selectorEncoder.getPosition();
     if (selectorPosition != newSelectorPosition) {
         selectorPosition = newSelectorPosition;
-        if (selectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
+        if (lastSelectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
             int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
-            selectedSource = (selectedSource + step) % nbSources;  // Keep in [0..nbSources]
+            selectedSourceIndex = (selectedSourceIndex + step) % nbSources;  // Keep in [0..nbSources]
             // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
-            selectedSource = (selectedSource < 0 ? selectedSource + nbSources : selectedSource);
-            selectedSourceTime = millis();
+            selectedSourceIndex = (selectedSourceIndex < 0 ? selectedSourceIndex + nbSources : selectedSourceIndex);
+            lastSelectedSourceTime = millis();
 
-            LOG_INFO("Selecting source #%d - %s", selectedSource, sources[selectedSource]->name);
+            LOG_INFO("Selecting source #%d - %s", selectedSourceIndex, sources[selectedSourceIndex]->name);
 
-            display->displayLine(sources[selectedSource]->name, 0);
+            display->displayLine(sources[selectedSourceIndex]->name, 0);
         }
     }
 
-    if (selectedSource != currentSource && (selectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
+    if (selectedSourceIndex != currentSourceIndex && (lastSelectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
         // Deactivating previous source
-        switchSource(currentSource, selectedSource);
-        preferences.putInt(PREVIOUS_SOURCE_KEY, currentSource);
+        switchSource(currentSourceIndex, selectedSourceIndex);
+        preferences.putInt(PREVIOUS_SOURCE_KEY, currentSourceIndex);
 
-        selectedSourceTime = 0;
+        lastSelectedSourceTime = 0;
     }
 
     int newTunerPosition = tuneEncoder.getPosition();
@@ -254,9 +307,9 @@ void loop() {
         RotaryEncoder::Direction tuneDirection = tuneEncoder.getDirection();
         LOG_DEBUG("Tuning %s", tuneDirection == RotaryEncoder::Direction::CLOCKWISE ? "UP" : "DOWN");
         if (tuneDirection == RotaryEncoder::Direction::CLOCKWISE) {
-            sources[currentSource]->tuneUp();
+            sources[currentSourceIndex]->tuneUp();
         } else {
-            sources[currentSource]->tuneDown();
+            sources[currentSourceIndex]->tuneDown();
         }
         tunerPosition = newTunerPosition;
     }

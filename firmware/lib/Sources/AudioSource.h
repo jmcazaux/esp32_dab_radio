@@ -33,6 +33,6 @@ class AudioSource {
     virtual void deactivate();
     virtual void activate();
 
-   private:
+   protected:
     bool active = false;
 };
