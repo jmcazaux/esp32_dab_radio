@@ -77,6 +77,8 @@ void logFrequencies() {
 
 void serviceData(void) {
     LOG_DEBUG("Got service data (current source is %d)", currentSourceIndex);
+    sources[currentSourceIndex]->refreshInformation();
+
     if (currentSourceIndex == 1) {
         Serial.print(dab.ServiceData);
         Serial.print(F("\n"));
@@ -221,8 +223,8 @@ void setup() {
     display->displayLine(versionString, 2, CENTER);
 
     LOG_DEBUG("Initializing audio sources...");
-    sources[0] = new FMRadio(display, &dab);
-    sources[1] = new DABRadio(display, &dab);
+    sources[0] = new FMRadio(display, dab);
+    sources[1] = new DABRadio(display, dab);
     sources[2] = new Bluetooth(display);
 
     pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);

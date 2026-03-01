@@ -2,7 +2,7 @@
 #include <AudioSource.h>
 #include <Display.h>
 
-bool AudioSource::isActive() {
+bool AudioSource::isActive() const {
     return active;
 };
 
