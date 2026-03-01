@@ -22,7 +22,7 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Initializing LCDDisplay...");
     lcd->init();
     lcd->noAutoscroll();
-    this->switchOff();
+    this->LCDDisplay::switchOff();
 }
 
 void LCDDisplay::switchOn() {
@@ -38,6 +38,9 @@ void LCDDisplay::switchOff() {
 }
 
 void LCDDisplay::clear() {
+    for (int i = 0; i < nbLines; i++) {
+        displaySources[i].setSource("");
+    }
     lcd->clear();
 }
 

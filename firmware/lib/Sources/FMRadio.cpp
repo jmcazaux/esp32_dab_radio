@@ -18,16 +18,20 @@ void FMRadio::activate() {
     dab.begin(1);  // FM Mode
     dab.seek(1, 0);
 
-    display->displayLine(this->name, 0);
+    dab.speaker(SPEAKER_DIFF);
+    dab.mute(false, false);
+    dab.vol(40);
+
+    refreshInformation();
 
     active = true;
     LOG_INFO("Activated FM source \"%s\"", name);
 };
 
 void FMRadio::tunePressed() {
-    LOG_DEBUG("%n seeking up...", name);
+    LOG_DEBUG("%s seeking up...", name);
     if (dab.freq == 10790) {
-        // Resetting to begining of FM range
+        // Resetting to beginning of FM range
         dab.tune(static_cast<uint16_t>(8750));
     };
 
@@ -37,7 +41,7 @@ void FMRadio::tunePressed() {
 };
 
 void FMRadio::tuneDoublePressed() {
-    LOG_DEBUG("%n: seeking down...", name);
+    LOG_DEBUG("%s: seeking down...", name);
     if (dab.freq == 8750) {
         // Resetting to end of FM range
         dab.tune(static_cast<uint16_t>(10790));
@@ -73,7 +77,9 @@ void FMRadio::displayServiceInfo() const {
 
 void FMRadio::refreshInformation() {
     LOG_DEBUG("Loading new service information...");
-    ServiceInfo newServiceInfo;
+    ServiceInfo newServiceInfo{};
+
+    dab.status();
 
     newServiceInfo.frequency = dab.freq;
     LOG_DEBUG(" > Frequency:      %5.2f MHz", newServiceInfo.frequency / 100.0);
@@ -83,22 +89,21 @@ void FMRadio::refreshInformation() {
     newServiceInfo.year = dab.Year;
     newServiceInfo.hour = dab.Hours;
     newServiceInfo.minute = dab.Minutes;
-    LOG_DEBUG(" > Date & time:    %02d/%02d/%4d %02d:%02d",
-        newServiceInfo.day, newServiceInfo.month, newServiceInfo.year);
+    LOG_DEBUG(" > Date & time:    %02d/%02d/%04d %02d:%02d",
+        newServiceInfo.day, newServiceInfo.month, newServiceInfo.year,
+        newServiceInfo.hour, newServiceInfo.minute);
 
-    sprintf(newServiceInfo.serviceName, PSTR("%s"), dab.ps);
-    LOG_DEBUG(" > Service name:   %s (%s)", newServiceInfo.serviceName, dab.ps);
+    sprintf_P(newServiceInfo.serviceName, PSTR("%s"), dab.ps);
+    LOG_DEBUG(" > Service name:   \"%s\" (%s)", newServiceInfo.serviceName, dab.ps);
 
-    sprintf(newServiceInfo.serviceData, PSTR("%s\n"), dab.ServiceData);
-    LOG_DEBUG(" > Service data:   %s (%s)", newServiceInfo.serviceData, dab.ServiceData);
+    sprintf_P(newServiceInfo.serviceData, PSTR("%s"), dab.ServiceData);
+    LOG_DEBUG(" > Service data:   \"%s\" (%s)", newServiceInfo.serviceData, dab.ServiceData);
 
     newServiceInfo.signalStrength = dab.signalstrength;
     newServiceInfo.snr = dab.snr;
-    LOG_DEBUG(" > Strength / SNR: %d / %d (%d / %d)",
+    LOG_DEBUG(" > Strength / SNR: %d / %d",
         newServiceInfo.signalStrength,
-        newServiceInfo.snr,
-        dab.signalstrength,
-        dab.snr);
+        newServiceInfo.snr);
 
     if (newServiceInfo == serviceInfo) {
         LOG_DEBUG("Service information did not change... Keeping it.");

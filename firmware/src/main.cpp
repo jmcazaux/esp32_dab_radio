@@ -30,11 +30,6 @@
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
 
 #define DAB_SPI_SLAVE_SELECT 12
-//          1.        2.        3.        4.        6.        7.
-// 12345678901234567890123456789012345678901234567890123456789012
-// PORTRAITS DE FAMILLE - FRANCE MUSIQUE                        �
-// 16H-17H LES HISTOIRES D'AMOUR EXTRAORDINAIRES                �
-// LA CONVERSATION SCIENTIFIQUE - FRANCE CULTURE
 
 // Logging related
 constexpr char LOG_FILE_PATH[] = "/internal/log.txt";

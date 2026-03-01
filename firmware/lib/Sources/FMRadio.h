@@ -25,8 +25,8 @@ class FMRadio : public AudioSource {
     struct ServiceInfo {
         uint16_t frequency;
 
-        char serviceName[64] = "\0";
-        char serviceData[128] = "\0";
+        char serviceName[64];
+        char serviceData[128];
 
         uint16_t year;
         uint8_t month;
@@ -73,5 +73,5 @@ class FMRadio : public AudioSource {
         };
     };
 
-    ServiceInfo serviceInfo;
+    ServiceInfo serviceInfo {};
 };
