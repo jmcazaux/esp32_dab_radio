@@ -8,7 +8,7 @@ static const char FM_RADIO[] = "Radio FM";
 
 class FMRadio : public AudioSource {
    public:
-    FMRadio(Display* display, DAB dab) : AudioSource(FM_RADIO, true, false, true, display), dab(dab) {};
+    FMRadio(Display* display, DAB *dab) : AudioSource(FM_RADIO, true, false, true, display), dab(dab) {};
 
     void activate() override;
     void deactivate() override;
@@ -18,9 +18,12 @@ class FMRadio : public AudioSource {
     void tuneDoublePressed() override;
 
    private:
-    DAB dab;
+    DAB* dab;
+    Preferences preferences;
 
+    void modeOrTuningChanged();
     void displayServiceInfo() const;
+    void savePreferences();
 
     struct ServiceInfo {
         uint16_t frequency;

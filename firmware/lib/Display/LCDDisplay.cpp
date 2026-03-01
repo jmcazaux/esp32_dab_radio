@@ -62,6 +62,15 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
         return;
     }
 
+
+    if (displaySources[line].source() != nullptr
+        && strcmp(displaySources[line].source(), text) == 0
+        && displaySources[line].alignment == align) {
+        // Same text and alignment, no need to change anything
+        return;
+    }
+
+
     displaySources[line].setSource(text, align);
 
     this->padOrTrim(text, lines[line], nbColumns, align);

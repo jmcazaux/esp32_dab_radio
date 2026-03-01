@@ -70,25 +70,9 @@ void logFrequencies() {
     LOG_DEBUG(" > XTAL frequency: %dMHz", getXtalFrequencyMhz());
 }
 
-void serviceData(void) {
-    LOG_DEBUG("Got service data (current source is %d)", currentSourceIndex);
+void serviceData() {
+    LOG_DEBUG("Got service data...", currentSourceIndex);
     sources[currentSourceIndex]->refreshInformation();
-
-    if (currentSourceIndex == 1) {
-        Serial.print(dab.ServiceData);
-        Serial.print(F("\n"));
-    } else {
-        char statusstring[144];
-
-        sprintf_P(statusstring, PSTR("%02d/%02d/%04d "), dab.Days, dab.Months, dab.Year);
-        Serial.print(statusstring);
-        sprintf_P(statusstring, PSTR("%02d:%02d "), dab.Hours, dab.Minutes);
-        Serial.print(statusstring);
-        sprintf_P(statusstring, PSTR("PS: \"%s\" "), dab.ps);
-        Serial.print(statusstring);
-        sprintf_P(statusstring, PSTR("Service data: \"%s\"\n"), dab.ServiceData);
-        Serial.print(statusstring);
-    }
 }
 
 void DABSpiMsg(unsigned char* data, uint32_t len) {
@@ -103,7 +87,7 @@ void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
     dab.setCallback(serviceData);
     dab.mute(true, true);  // Avoid "tuning" noises
-    dab.begin(1);          // Actual mode set by the AudioSource
+    dab.begin(1);  // Actual mode set by the AudioSource
     if (dab.error != 0) {
         LOG_ERROR("DABShield error: %s", dab.error);
     }
@@ -129,7 +113,7 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
 
     // Tuning CPU
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
-        long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
+        const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
         LOG_DEBUG("Setting frequency to %ldMhz...", frequency);
         Serial.flush();  // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
@@ -218,8 +202,8 @@ void setup() {
     display->displayLine(versionString, 2, CENTER);
 
     LOG_DEBUG("Initializing audio sources...");
-    sources[0] = new FMRadio(display, dab);
-    sources[1] = new DABRadio(display, dab);
+    sources[0] = new FMRadio(display, &dab);
+    sources[1] = new DABRadio(display, &dab);
     sources[2] = new Bluetooth(display);
 
     pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);
@@ -246,16 +230,11 @@ void setup() {
     tuneButton.attachLongPressStop(tunePressStopped);
     LOG_INFO("Initialized buttons");
 
-    delay(800);
-
-    // TODO: This is to test display only, remove when actual info can de displayed
-    display->clearLine(1);
-    display->displayLine("France Inter", 2, CENTER);
-    display->displayLine("La plus grande matinale de France avec Florence Paracuellos", 3, ROLLING_LEFT);
-
-    // Restoring previous souce
+    // Restoring previous source
     currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources;  // Just to make sure
+    display->clear();
     switchSource(-1, currentSourceIndex);
+
 
     LOG_INFO("Systems initialized");
 }
