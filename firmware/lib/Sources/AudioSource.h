@@ -14,6 +14,8 @@ class AudioSource {
 
     Display* display;
 
+    virtual void tick() {};
+
     virtual void tuneUp() {};
     virtual void tuneDown() {};
     virtual void tunePressed() {};

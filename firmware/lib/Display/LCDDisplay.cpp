@@ -2,7 +2,7 @@
 
 #include <AdvancedLogger.h>
 #include <LiquidCrystal_I2C.h>
-#include <string.h>
+#include <cstring>
 
 constexpr long ROLLING_TEXT_UPDATE_INTERVAL_MS = 600;
 
@@ -50,10 +50,7 @@ void LCDDisplay::clearLine(u_int8_t line) {
         return;
     }
 
-    lcd->setCursor(0, line);
-    for (uint8_t i = 0; i < nbColumns; i++) {
-        lcd->print(" ");
-    }
+    displayLine(" ", line, LEFT);
 }
 
 void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment align) {
@@ -62,14 +59,12 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
         return;
     }
 
-
     if (displaySources[line].source() != nullptr
         && strcmp(displaySources[line].source(), text) == 0
         && displaySources[line].alignment == align) {
         // Same text and alignment, no need to change anything
         return;
     }
-
 
     displaySources[line].setSource(text, align);
 

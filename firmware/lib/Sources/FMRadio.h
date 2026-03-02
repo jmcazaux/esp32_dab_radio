@@ -14,15 +14,22 @@ class FMRadio : public AudioSource {
     void deactivate() override;
     void refreshInformation() override;
 
+    void tick() override;
+
+    void tuneUp() override;
+    void tuneDown() override;
     void tunePressed() override;
     void tuneDoublePressed() override;
 
    private:
     DAB* dab;
     Preferences preferences;
+    unsigned long lastTargetFrequencyChange = 0;
+    uint16_t targetFrequency = 0;
 
+    void offsetTargetFrequency(uint16_t frequencyInc);
     void modeOrTuningChanged();
-    void displayServiceInfo() const;
+    void displayServiceInfo();
     void savePreferences();
 
     struct ServiceInfo {
@@ -73,6 +80,14 @@ class FMRadio : public AudioSource {
 
             strcpy(this->serviceName, other.serviceName);
             strcpy(this->serviceData, other.serviceData);
+        };
+
+        void clear() {
+            this->frequency = 0;
+            this->signalStrength = 0;
+            this->snr = 0;
+            strcpy(this->serviceName, "");
+            strcpy(this->serviceData, "");
         };
     };
 

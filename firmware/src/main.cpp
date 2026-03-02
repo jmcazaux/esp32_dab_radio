@@ -111,7 +111,7 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
         fromSource->deactivate();
     }
 
-    // Tuning CPU
+    // Tuning CPU Clock
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
         const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
         LOG_DEBUG("Setting frequency to %ldMhz...", frequency);
@@ -137,6 +137,8 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
 
     currentSourceIndex = toSourceIdx;
     selectedSourceIndex = toSourceIdx;
+
+    preferences.putInt(PREVIOUS_SOURCE_KEY, currentSourceIndex);
 }
 
 void selectorClicked() {
@@ -250,6 +252,10 @@ void loop() {
     selectorButton.tick();
     tuneButton.tick();
 
+    for (int i = 0; i < nbSources; i++) {
+        sources[i]->tick();
+    }
+
     if (sources[currentSourceIndex]->needsRadio) {
         dab.task();
     }
@@ -271,10 +277,8 @@ void loop() {
     }
 
     if (selectedSourceIndex != currentSourceIndex && (lastSelectedSourceTime + SWITCH_SOURCE_DELAY) < millis()) {
-        // Deactivating previous source
+        // Switching source
         switchSource(currentSourceIndex, selectedSourceIndex);
-        preferences.putInt(PREVIOUS_SOURCE_KEY, currentSourceIndex);
-
         lastSelectedSourceTime = 0;
     }
 
@@ -289,6 +293,4 @@ void loop() {
         }
         tunerPosition = newTunerPosition;
     }
-
-    delay(10);
 }

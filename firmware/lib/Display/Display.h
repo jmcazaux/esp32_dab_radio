@@ -13,6 +13,8 @@ enum DisplayAlignment {
 
 class Display {
    public:
+    virtual ~Display() = default;
+
     virtual void clear() {};               // Clear the display
     virtual void clearLine(uint8_t line);  // Clear line `line`
 
@@ -29,7 +31,7 @@ class Display {
     virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.
-    // `cycle` is used in case of a rolling alignment and can be an ever increasing int.
+    // `cycle` is used in case of a rolling alignment and can be an ever-increasing int.
     void padOrTrim(const char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`
@@ -39,6 +41,7 @@ class Display {
 
    private:
     void trim(const char source[], char destination[], uint8_t size, DisplayAlignment align);
-    void pad(const char source[], char destination[], uint8_t size, DisplayAlignment align);
+
+    static void pad(const char source[], char destination[], uint8_t size, DisplayAlignment align);
     void rollLeft(const char source[], char destination[], uint8_t size, long cycle);
 };
