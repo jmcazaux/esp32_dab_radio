@@ -3,7 +3,7 @@
 
 #include <AdvancedLogger.h>
 #include <Arduino.h>
-#include <string.h>
+#include <cstring>
 
 void prefixAndSuffixStringWithSpaces(const char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
     for (uint8_t i = 0; i < prefixLength; i++) {

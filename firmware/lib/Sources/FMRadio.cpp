@@ -1,0 +1,204 @@
+
+#include <AdvancedLogger.h>
+#include <FMRadio.h>
+#include <StringUtils.h>
+
+constexpr char PREFERENCE_NAMESPACE[] = "fm_radio";
+constexpr char MODE_KEY[] = "mode";
+constexpr char FREQUENCY_KEY[] = "frequency";
+constexpr uint16_t MIN_FM_FREQUENCY = 8750;
+constexpr uint16_t MAX_FM_FREQUENCY = 10790;
+
+constexpr unsigned long CHANGE_FREQUENCY_DELAY_MS = 300;
+constexpr unsigned long LARGER_FREQUENCY_STEP_DELAY_MS = 100;
+
+constexpr uint16_t MIN_FREQUENCY_STEP_CHANGE = 10;
+constexpr uint16_t LARGE_FREQUENCY_STEP_CHANGE = 10 * 10;
+
+void FMRadio::activate() {
+    LOG_DEBUG("Activating FM source \"%s\"...", name);
+    if (this->isActive()) {
+        // Only refresh the display
+        display->displayLine(name, 0);
+        return;
+    }
+
+    display->displayLine(name, 0);
+
+    preferences.begin(PREFERENCE_NAMESPACE, false);
+    uint16_t previousFrequency = preferences.getInt(FREQUENCY_KEY, MIN_FM_FREQUENCY);
+    previousFrequency = max(previousFrequency, MIN_FM_FREQUENCY);
+    previousFrequency = min(previousFrequency, MAX_FM_FREQUENCY);
+    LOG_INFO("%s restoring mode %s: %4.1fMHz", name, "MANUAL", previousFrequency / 100.0);
+
+    // Actually activate the source
+    dab->begin(1);  // FM Mode
+    dab->tune(previousFrequency);
+
+    dab->speaker(SPEAKER_DIFF);
+    dab->mute(false, false);
+    dab->vol(35);
+
+    serviceInfo.frequency = previousFrequency;
+    this->modeOrTuningChanged();
+
+    active = true;
+    LOG_INFO("Activated FM source \"%s\"", name);
+}
+
+void FMRadio::tick() {
+
+    if (targetFrequency != dab->freq
+        && lastTargetFrequencyChange + CHANGE_FREQUENCY_DELAY_MS < millis()) {
+        LOG_DEBUG("Tuning to %5.1fMHz...", targetFrequency /  100.0);
+        dab->tune(targetFrequency);
+        modeOrTuningChanged();
+    }
+}
+
+void FMRadio::offsetTargetFrequency(const uint16_t frequencyInc) {
+    uint16_t newTarget = targetFrequency + frequencyInc;
+    targetFrequency = min(max(newTarget, MIN_FM_FREQUENCY), MAX_FM_FREQUENCY);
+    LOG_DEBUG("Targeting %5.1fMHz...", targetFrequency /  100.0);
+    lastTargetFrequencyChange = millis();
+    displayServiceInfo();
+}
+
+void FMRadio::tuneUp() {
+    const uint16_t frequencyStep =
+        (millis() - lastTargetFrequencyChange) < LARGER_FREQUENCY_STEP_DELAY_MS
+            ? LARGE_FREQUENCY_STEP_CHANGE
+            : MIN_FREQUENCY_STEP_CHANGE;
+
+    LOG_DEBUG("Tuning up by %.1fMHz (delay %dms)",
+        frequencyStep / 100.0,
+        millis() - lastTargetFrequencyChange);
+    offsetTargetFrequency(frequencyStep);
+    lastTargetFrequencyChange = millis();
+
+}
+
+void FMRadio::tuneDown() {
+    const uint16_t frequencyStep =
+    (millis() - lastTargetFrequencyChange) < LARGER_FREQUENCY_STEP_DELAY_MS
+        ? LARGE_FREQUENCY_STEP_CHANGE
+        : MIN_FREQUENCY_STEP_CHANGE;
+
+    LOG_DEBUG("Tuning down by %.1fMHz (delay %dms)",
+        frequencyStep / 100.0,
+        millis() - lastTargetFrequencyChange);
+    offsetTargetFrequency(-frequencyStep);
+    lastTargetFrequencyChange = millis();
+}
+
+void FMRadio::tunePressed() {
+    LOG_DEBUG("%s seeking up...", name);
+    if (dab->freq == MAX_FM_FREQUENCY) {
+        // Resetting to beginning of FM range
+        dab->tune(MIN_FM_FREQUENCY);
+    };
+
+    dab->seek(1, 0);
+    LOG_INFO("Tuned to %5.2fMHz", dab->freq / 100.0);
+    this->modeOrTuningChanged();
+};
+
+void FMRadio::tuneDoublePressed() {
+    LOG_DEBUG("%s: seeking down...", name);
+    if (dab->freq == MIN_FM_FREQUENCY) {
+        // Resetting to end of FM range
+        dab->tune(MAX_FM_FREQUENCY);
+    };
+
+    dab->seek(0, 0);
+    LOG_INFO("Tuned to %5.2fMHz", dab->freq / 100.0);
+    this->modeOrTuningChanged();
+};
+
+void FMRadio::deactivate() {
+    LOG_DEBUG("De-activating \"%s\"...", name);
+    active = false;
+    LOG_INFO("De-activated \"%s\"", name);
+};
+
+void FMRadio::modeOrTuningChanged() {
+    targetFrequency = dab->freq;
+    this->refreshInformation();
+    this->savePreferences();
+}
+
+void FMRadio::displayServiceInfo() {
+    LOG_DEBUG("Displaying service information...");
+
+    if (targetFrequency != dab->freq) {
+        // We are tuning the frequency
+        char freqBuffer[21];
+        sprintf(freqBuffer, ">>> %.1fMHz", targetFrequency / 100.0);
+        display->displayLine(freqBuffer, 1, RIGHT);
+        if (strlen(serviceInfo.serviceData) > 0) {
+            strcpy(serviceInfo.serviceData, "");
+        }
+    } else {
+        char nameAndFreqBuffer[21];
+        sprintf(nameAndFreqBuffer, "%-12s%5.1fMHz", serviceInfo.serviceName, dab->freq / 100.0);
+
+        display->displayLine(nameAndFreqBuffer, 1);
+
+        if (strlen(serviceInfo.serviceData) > 0) {
+            display->displayLine(serviceInfo.serviceData, 3, ROLLING_LEFT);
+        } else {
+            display->clearLine(3);
+        }
+    }
+    LOG_INFO("Displayed service information");
+}
+
+void FMRadio::refreshInformation() {
+    LOG_DEBUG("Loading new service information...");
+    ServiceInfo newServiceInfo{};
+    char buffer[128];
+
+    dab->status();
+
+    newServiceInfo.frequency = dab->freq;
+
+    newServiceInfo.day = dab->Days;
+    newServiceInfo.month = dab->Months;
+    newServiceInfo.year = dab->Year;
+    newServiceInfo.hour = dab->Hours;
+    newServiceInfo.minute = dab->Minutes;
+
+    sprintf(buffer, "%s", dab->ps);
+    sprintf(newServiceInfo.serviceName, "%s", trim(buffer));
+
+    sprintf(buffer, "%s", dab->ServiceData);
+    sprintf(newServiceInfo.serviceData, "%s", trim(buffer));
+
+    newServiceInfo.signalStrength = dab->signalstrength;
+    newServiceInfo.snr = dab->snr;
+
+    LOG_DEBUG(" > Frequency:      %.1fMHz", newServiceInfo.frequency / 100.0);
+    LOG_DEBUG(" > Date & time:    %02d/%02d/%04d %02d:%02d",
+        newServiceInfo.day, newServiceInfo.month, newServiceInfo.year,
+        newServiceInfo.hour, newServiceInfo.minute);
+    LOG_DEBUG(" > Service name:   \"%s\"", newServiceInfo.serviceName);
+    LOG_DEBUG(" > Service data:   \"%s\"", newServiceInfo.serviceData);
+    LOG_DEBUG(" > Strength / SNR: %d / %d",
+        newServiceInfo.signalStrength,
+        newServiceInfo.snr);
+
+    if (newServiceInfo == serviceInfo) {
+        LOG_DEBUG("Service information did not change... Keeping it.");
+        return;
+    }
+
+    serviceInfo.copyFrom(newServiceInfo);
+
+    this->displayServiceInfo();
+}
+
+
+void FMRadio::savePreferences() {
+    preferences.putString(MODE_KEY, "manual");
+    preferences.putInt(FREQUENCY_KEY, serviceInfo.frequency);
+}
