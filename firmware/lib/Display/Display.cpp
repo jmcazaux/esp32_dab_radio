@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <cstring>
 
-void prefixAndSuffixStringWithSpaces(const char source[], char destination[], uint8_t prefixLength, uint8_t suffixLength) {
+void prefixAndSuffixStringWithSpaces(const char source[], char destination[], const uint8_t prefixLength, const uint8_t suffixLength) {
     for (uint8_t i = 0; i < prefixLength; i++) {
         destination[i] = ' ';
     }
@@ -78,15 +78,15 @@ void Display::pad(const char source[], char destination[], uint8_t size, Display
 }
 
 void Display::rollLeft(const char source[], char destination[], uint8_t size, long cycle) {
-    int sourceLength = strlen(source);
-    int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
-    int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
+    unsigned int sourceLength = strlen(source);
+    unsigned int apparentLength = sourceLength + size - 2;  // Length of string that would roll if it was one (we want the first character to reappear when the last one is displayed)
+    unsigned int sourceFrom = cycle % apparentLength;       // `cycle` will be an ever increasing counter, so apply modulus
 
     if (sourceFrom < sourceLength) {
         // "Foobar" -> "bar     " || "r      F"
 
         // "bar"
-        copySubstring(source, destination, sourceFrom, min(sourceLength - sourceFrom, int(size)));
+        copySubstring(source, destination, sourceFrom, min(static_cast<int>(sourceLength - sourceFrom), static_cast<int>(size)));
 
         // "bar      "
         for (uint8_t i = sourceLength - sourceFrom; i < size; i++) {

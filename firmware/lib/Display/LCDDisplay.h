@@ -16,8 +16,12 @@ class LCDDisplay : public Display {
 
     void displayLine(const char text[], uint8_t line, DisplayAlignment align) override;
 
+    void displayJustified(const char leftText[], const char rightText[], uint8_t line) override;
+
+    void displayProgress(uint8_t progress, uint8_t line) override;
+
    private:
-    LiquidCrystal_I2C* lcd = NULL;
+    LiquidCrystal_I2C* lcd = nullptr;
     u_int8_t nbColumns;
     u_int8_t nbLines;
 
@@ -38,7 +42,7 @@ class LCDDisplay : public Display {
 
         void setSource(const char* source, DisplayAlignment align);
         void setSource(const char* source);
-        char* source();
+        char* source() const;
 
        private:
         char* _source;
