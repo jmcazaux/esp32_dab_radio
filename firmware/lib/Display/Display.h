@@ -30,7 +30,7 @@ class Display {
     // Display `text` at line `line`, with alignment `align`
     virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align);
 
-    // Display `leftText` at the beginning of line `line` and `rightText`starting from the end
+    // Display `leftText` at the beginning of line `line` and `rightText` starting from the end
     virtual void displayJustified(const char leftText[], const char rightText[], uint8_t line);
 
     // Display a progress bar at line `line`. `progress` must be between 0 and 100;

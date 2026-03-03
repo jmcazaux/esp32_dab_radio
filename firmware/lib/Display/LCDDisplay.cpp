@@ -89,7 +89,7 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
 
 void LCDDisplay::displayJustified(const char leftText[], const char rightText[], const uint8_t line) {
     char buffer[nbColumns + 1];
-    buffer[nbColumns + 1] = '\0';
+    buffer[nbColumns] = '\0';
 
     const auto leftTextLength = strlen(leftText);
     for (uint8_t i = 0; i < leftTextLength && (i < nbColumns); i++) {
@@ -115,9 +115,13 @@ void LCDDisplay::displayJustified(const char leftText[], const char rightText[],
 void LCDDisplay::displayProgress(const uint8_t progress, const uint8_t line) {
     const uint8_t actualProgress = min(100,max(0, static_cast<int>(progress)));
     const auto nbBlocks = static_cast<uint8_t>(round(actualProgress / (100.0 / nbColumns)));
-    for (uint8_t i = 0; i < nbBlocks; i++) {
+    for (uint8_t i = 0; i < nbColumns; i++) {
         lcd->setCursor(i, line);
-        lcd->write(0);
+        if (i < nbBlocks) {
+            lcd->write(0);
+        } else {
+            lcd->print(' ');
+        }
     }
 }
 
