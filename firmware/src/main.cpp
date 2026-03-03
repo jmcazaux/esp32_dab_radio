@@ -52,15 +52,15 @@ AudioSource* sources[nbSources];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
-long lastSelectedSourceTime = 0;
+unsigned long lastSelectedSourceTime = 0;
 
 // Devices
 DAB dab;
 Display* display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
-OneButton selectorButton = OneButton(SELECTOR_ENCODER_SW, true, true);
-OneButton tuneButton = OneButton(TUNE_ENCODER_SW, true, true);
+OneButton selectorButton(SELECTOR_ENCODER_SW, true, true);
+OneButton tuneButton(TUNE_ENCODER_SW, true, true);
 constexpr uint BUTTON_DOUBLECLICK_DELAY_MS = 300;
 
 void logFrequencies() {
@@ -114,12 +114,12 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
     // Tuning CPU Clock
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
         const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
-        LOG_DEBUG("Setting frequency to %ldMhz...", frequency);
+        LOG_DEBUG("Setting CPU frequency to %ldMhz...", frequency);
         Serial.flush();  // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
         logFrequencies();
-        LOG_INFO("Set frequency to %ldMhz", frequency);
+        LOG_INFO("Set CPU frequency to %ldMhz", frequency);
     }
 
     // Toggle DAB: doing here to avoid on/off/on when switching from FM to DAB
@@ -251,8 +251,8 @@ void loop() {
     selectorButton.tick();
     tuneButton.tick();
 
-    for (int i = 0; i < nbSources; i++) {
-        sources[i]->tick();
+    for (auto & source : sources) {
+        source->tick();
     }
 
     if (sources[currentSourceIndex]->needsRadio) {
