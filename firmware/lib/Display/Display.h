@@ -30,6 +30,9 @@ class Display {
     // Display `text` on line `line`, with alignment `align`
     virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align);
 
+    // Display a progress bar on line `line`. `progress` must be between 0 and 100;
+    virtual void displayProgress(uint8_t progress, uint8_t line);
+
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.
     // `cycle` is used in case of a rolling alignment and can be an ever-increasing int.
     void padOrTrim(const char source[], char destination[], uint8_t size, DisplayAlignment align, long cycle);
@@ -40,8 +43,7 @@ class Display {
     };
 
    private:
-    void trim(const char source[], char destination[], uint8_t size, DisplayAlignment align);
-
+    static void trim(const char source[], char destination[], uint8_t size, DisplayAlignment align);
     static void pad(const char source[], char destination[], uint8_t size, DisplayAlignment align);
-    void rollLeft(const char source[], char destination[], uint8_t size, long cycle);
+    static void rollLeft(const char source[], char destination[], uint8_t size, long cycle);
 };

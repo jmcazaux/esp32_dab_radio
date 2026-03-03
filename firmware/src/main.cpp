@@ -237,7 +237,6 @@ void setup() {
     display->clear();
     switchSource(-1, currentSourceIndex);
 
-
     LOG_INFO("Systems initialized");
 }
 

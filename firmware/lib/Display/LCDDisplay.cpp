@@ -6,6 +6,17 @@
 
 constexpr long ROLLING_TEXT_UPDATE_INTERVAL_MS = 600;
 
+byte BLOCK[8] = {
+    0b11111,
+    0b11111,
+    0b11111,
+    0b11111,
+    0b11111,
+    0b11111,
+    0b11111,
+    0b11111
+};
+
 LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Creating LCDDisplay...");
     lcd = new LiquidCrystal_I2C(lcdAddr, lcdColumns, lcdRows);
@@ -22,7 +33,10 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     LOG_DEBUG("Initializing LCDDisplay...");
     lcd->init();
     lcd->noAutoscroll();
-    this->LCDDisplay::switchOff();
+    // create a new character
+    lcd->createChar(0, BLOCK);
+
+    this->switchOff();
 }
 
 void LCDDisplay::switchOn() {
@@ -71,6 +85,15 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
     this->padOrTrim(text, lines[line], nbColumns, align);
     lcd->setCursor(0, line);
     lcd->print(lines[line]);
+}
+
+void LCDDisplay::displayProgress(const uint8_t progress, const uint8_t line) {
+    const uint8_t actualProgress = min(100,max(0, static_cast<int>(progress)));
+    const auto nbBlocks = static_cast<uint8_t>(round(actualProgress / (100.0 / nbColumns)));
+    for (uint8_t i = 0; i < nbBlocks; i++) {
+        lcd->setCursor(i, line);
+        lcd->write(0);
+    }
 }
 
 void LCDDisplay::tick(unsigned long millis) {
