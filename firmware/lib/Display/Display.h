@@ -24,13 +24,16 @@ class Display {
     // To be called in each main loop (used in scrolling, refresh, etc.)
     virtual void tick(unsigned long currentMillis);
 
-    // Display `text` on line `line`, with default alignment `LEFT`
+    // Display `text` at line `line`, with default alignment `LEFT`
     void displayLine(const char text[], uint8_t line);
 
-    // Display `text` on line `line`, with alignment `align`
+    // Display `text` at line `line`, with alignment `align`
     virtual void displayLine(const char text[], uint8_t line, DisplayAlignment align);
 
-    // Display a progress bar on line `line`. `progress` must be between 0 and 100;
+    // Display `leftText` at the beginning of line `line` and `rightText`starting from the end
+    virtual void displayJustified(const char leftText[], const char rightText[], uint8_t line);
+
+    // Display a progress bar at line `line`. `progress` must be between 0 and 100;
     virtual void displayProgress(uint8_t progress, uint8_t line);
 
     // Pad (or trim) `source` so that it would fit in `size` characters, respecting `align`.

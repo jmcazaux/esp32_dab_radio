@@ -9,7 +9,7 @@ constexpr char FREQUENCY_KEY[] = "frequency";
 constexpr uint16_t MIN_FM_FREQUENCY = 8750;
 constexpr uint16_t MAX_FM_FREQUENCY = 10790;
 
-constexpr unsigned long CHANGE_FREQUENCY_DELAY_MS = 300;
+constexpr unsigned long CHANGE_FREQUENCY_DELAY_MS = 400;
 constexpr unsigned long LARGER_FREQUENCY_STEP_DELAY_MS = 100;
 
 constexpr uint16_t MIN_FREQUENCY_STEP_CHANGE = 10;
@@ -19,11 +19,11 @@ void FMRadio::activate() {
     LOG_DEBUG("Activating FM source \"%s\"...", name);
     if (this->isActive()) {
         // Only refresh the display
-        display->displayLine(name, 0);
+        display->displayJustified(name, "MAN", 0);
         return;
     }
 
-    display->displayLine(name, 0);
+    display->displayJustified(name, "MAN", 0);
 
     preferences.begin(PREFERENCE_NAMESPACE, false);
     uint16_t previousFrequency = preferences.getInt(FREQUENCY_KEY, MIN_FM_FREQUENCY);
@@ -139,10 +139,10 @@ void FMRadio::displayServiceInfo() {
             strcpy(serviceInfo.serviceData, "");
         }
     } else {
-        char nameAndFreqBuffer[21];
-        sprintf(nameAndFreqBuffer, "%-12s%5.1fMHz", serviceInfo.serviceName, dab->freq / 100.0);
+        char freqBuffer[21];
+        sprintf(freqBuffer, "%.1fMHz",dab->freq / 100.0);
 
-        display->displayLine(nameAndFreqBuffer, 1);
+        display->displayJustified(serviceInfo.serviceName, freqBuffer, 1);
 
         if (strlen(serviceInfo.serviceData) > 0) {
             display->displayLine(serviceInfo.serviceData, 3, ROLLING_LEFT);

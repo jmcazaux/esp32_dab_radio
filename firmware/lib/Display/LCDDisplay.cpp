@@ -87,6 +87,31 @@ void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment a
     lcd->print(lines[line]);
 }
 
+void LCDDisplay::displayJustified(const char leftText[], const char rightText[], const uint8_t line) {
+    char buffer[nbColumns + 1];
+    buffer[nbColumns + 1] = '\0';
+
+    const auto leftTextLength = strlen(leftText);
+    for (uint8_t i = 0; i < leftTextLength && (i < nbColumns); i++) {
+        buffer[i] = leftText[i];
+    }
+
+    for (uint8_t i = leftTextLength; i < nbColumns; i++) {
+        buffer[i] = ' ';
+    }
+
+    const auto rightTextLength = strlen(rightText);
+    for (uint8_t i = 0; i < rightTextLength && nbColumns - i >= 0; i++) {
+        buffer[nbColumns - i - 1] = rightText[rightTextLength - i - 1];
+    }
+
+    if(leftTextLength + rightTextLength > nbColumns && rightTextLength < nbColumns) {
+        buffer[nbColumns - rightTextLength - 1] = '*';
+    }
+
+    displayLine(buffer, line, LEFT);
+}
+
 void LCDDisplay::displayProgress(const uint8_t progress, const uint8_t line) {
     const uint8_t actualProgress = min(100,max(0, static_cast<int>(progress)));
     const auto nbBlocks = static_cast<uint8_t>(round(actualProgress / (100.0 / nbColumns)));
@@ -131,6 +156,6 @@ void LCDDisplay::DisplaySource::setSource(const char* source) {
     rollingIndex = 0;
 }
 
-char* LCDDisplay::DisplaySource::source() {
+char* LCDDisplay::DisplaySource::source() const {
     return _source;
 }
