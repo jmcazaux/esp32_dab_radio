@@ -36,8 +36,10 @@ constexpr char LOG_FILE_PATH[] = "/internal/log.txt";
 constexpr ulong MAX_LOG_LINES = 500;
 
 // Delays & timings
-constexpr ulong SWITCH_SOURCE_DELAY = 400;      // Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
-constexpr ulong SELECT_SOURCE_MIN_DELAY = 200;  // Delay between 2 changes of the selected source (avoid two many changes when rotating the knob fast)
+constexpr ulong SWITCH_SOURCE_DELAY = 400;
+// Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
+constexpr ulong SELECT_SOURCE_MIN_DELAY = 200;
+// Delay between 2 changes of the selected source (avoid two many changes when rotating the knob fast)
 
 // Preferences
 constexpr char GENERAL_PREF_NAMESPACE[] = "general";
@@ -48,7 +50,7 @@ Preferences preferences;
 constexpr int HIGH_CPU_CLOCK_MHZ = 240;
 constexpr int LOW_CPU_CLOCK_MHZ = 40;
 constexpr int nbSources = 3;
-AudioSource* sources[nbSources];
+AudioSource *sources[nbSources];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
@@ -56,7 +58,7 @@ unsigned long lastSelectedSourceTime = 0;
 
 // Devices
 DAB dab;
-Display* display;
+Display *display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 OneButton selectorButton(SELECTOR_ENCODER_SW, true, true);
@@ -75,8 +77,8 @@ void serviceData() {
     sources[currentSourceIndex]->refreshInformation();
 }
 
-void DABSpiMsg(unsigned char* data, uint32_t len) {
-    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));  // 2MHz for starters...
+void DABSpiMsg(unsigned char *data, uint32_t len) {
+    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0)); // 2MHz for starters...
     digitalWrite(DAB_SPI_SLAVE_SELECT, LOW);
     SPI.transfer(data, len);
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
@@ -86,8 +88,8 @@ void DABSpiMsg(unsigned char* data, uint32_t len) {
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
     dab.setCallback(serviceData);
-    dab.mute(true, true);  // Avoid "tuning" noises
-    dab.begin(1);  // Actual mode set by the AudioSource
+    dab.mute(true, true); // Avoid "tuning" noises
+    dab.begin(1); // Actual mode set by the AudioSource
     if (dab.error != 0) {
         LOG_ERROR("DABShield error: %s", dab.error);
     }
@@ -101,8 +103,8 @@ void disableRadio() {
 }
 
 void switchSource(int fromSourceIdx, int toSourceIdx) {
-    AudioSource* toSource = sources[toSourceIdx];
-    AudioSource* fromSource = nullptr;
+    AudioSource *toSource = sources[toSourceIdx];
+    AudioSource *fromSource = nullptr;
     if (fromSourceIdx >= 0) {
         fromSource = sources[fromSourceIdx];
     }
@@ -115,7 +117,7 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
         const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
         LOG_DEBUG("Setting CPU frequency to %ldMhz...", frequency);
-        Serial.flush();  // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
+        Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
         logFrequencies();
@@ -232,8 +234,10 @@ void setup() {
     tuneButton.attachLongPressStop(tunePressStopped);
     LOG_INFO("Initialized buttons");
 
+    delay(800);
+
     // Restoring previous source
-    currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources;  // Just to make sure
+    currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources; // Just to make sure
     display->clear();
     switchSource(-1, currentSourceIndex);
 
@@ -251,7 +255,7 @@ void loop() {
     selectorButton.tick();
     tuneButton.tick();
 
-    for (auto & source : sources) {
+    for (auto &source: sources) {
         source->tick();
     }
 
@@ -264,7 +268,7 @@ void loop() {
         selectorPosition = newSelectorPosition;
         if (lastSelectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
             int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
-            selectedSourceIndex = (selectedSourceIndex + step) % nbSources;  // Keep in [0..nbSources]
+            selectedSourceIndex = (selectedSourceIndex + step) % nbSources; // Keep in [0..nbSources]
             // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
             selectedSourceIndex = (selectedSourceIndex < 0 ? selectedSourceIndex + nbSources : selectedSourceIndex);
             lastSelectedSourceTime = millis();

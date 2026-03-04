@@ -3,33 +3,41 @@
 #include <AudioSource.h>
 #include <DABShield.h>
 #include <Display.h>
-
-static const char FM_RADIO[] = "Radio FM";
+#include <LocalizedStrings.h>
 
 class FMRadio : public AudioSource {
-   public:
-    FMRadio(Display* display, DAB *dab) : AudioSource(FM_RADIO, true, false, true, display), dab(dab) {};
+public:
+    FMRadio(Display *display, DAB *dab) : AudioSource(SOURCE_FM_RADIO, true, false, true, display), dab(dab) {
+    };
 
     void activate() override;
+
     void deactivate() override;
+
     void refreshInformation() override;
 
     void tick() override;
 
     void tuneUp() override;
+
     void tuneDown() override;
+
     void tunePressed() override;
+
     void tuneDoublePressed() override;
 
-   private:
-    DAB* dab;
+private:
+    DAB *dab;
     Preferences preferences;
     unsigned long lastTargetFrequencyChange = 0;
     uint16_t targetFrequency = 0;
 
     void offsetTargetFrequency(uint16_t frequencyInc);
+
     void modeOrTuningChanged();
+
     void displayServiceInfo();
+
     void savePreferences();
 
     struct ServiceInfo {
@@ -48,7 +56,7 @@ class FMRadio : public AudioSource {
         int8_t snr;
 
         // TODO: the below would rather be in the cpp file, but filed to do this
-        bool operator==(const ServiceInfo& other) const {
+        bool operator==(const ServiceInfo &other) const {
             if (this->frequency != other.frequency) return false;
 
             if (this->year != other.year) return false;
@@ -66,7 +74,7 @@ class FMRadio : public AudioSource {
             return true;
         };
 
-        void copyFrom(const ServiceInfo& other) {
+        void copyFrom(const ServiceInfo &other) {
             this->frequency = other.frequency;
 
             this->year = other.year;
@@ -91,5 +99,5 @@ class FMRadio : public AudioSource {
         };
     };
 
-    ServiceInfo serviceInfo {};
+    ServiceInfo serviceInfo{};
 };
