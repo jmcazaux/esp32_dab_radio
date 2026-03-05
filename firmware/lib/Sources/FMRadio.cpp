@@ -46,7 +46,7 @@ void FMRadio::activate() {
     previousFrequency = max(previousFrequency, MIN_FM_FREQUENCY);
     previousFrequency = min(previousFrequency, MAX_FM_FREQUENCY);
 
-    LOG_INFO("%s restoring mode %s: %4.1fMHz", name, MODE_NAMES[currentMode], previousFrequency / 100.0);
+    LOG_INFO("%s restoring mode %s: %.1fMHz", name, MODE_NAMES[currentMode], previousFrequency / 100.0);
     displayNameAndMode();
 
     // Actually activate the source
@@ -140,13 +140,13 @@ void FMRadio::tuneFrequency(const TuneDirection direction) {
 }
 
 
-void FMRadio::tuneListPreset(const TuneDirection direction) {
+void FMRadio::tuneList(const TuneDirection direction) {
     if (currentPresetIndex == 00 && direction == TUNE_DOWN) {
         currentPresetIndex = listPresets.size() - 1;
     } else {
         currentPresetIndex = (currentPresetIndex + direction) % listPresets.size();
     }
-    LOG_DEBUG("Tuning to preset %d: %.1MHz",
+    LOG_DEBUG("Tuning to preset %d: %.1fMHz",
               currentPresetIndex,
               listPresets[currentPresetIndex].frequency / 100.0);
 
@@ -159,7 +159,7 @@ void FMRadio::tuneUp() {
     if (currentMode == MANUAL) {
         tuneFrequency(TUNE_UP);
     } else if (currentMode == LIST) {
-        tuneListPreset(TUNE_UP);
+        tuneList(TUNE_UP);
     }
 }
 
@@ -167,7 +167,7 @@ void FMRadio::tuneDown() {
     if (currentMode == MANUAL) {
         tuneFrequency(TUNE_DOWN);
     } else if (currentMode == LIST) {
-        tuneListPreset(TUNE_DOWN);
+        tuneList(TUNE_DOWN);
     }
 }
 
@@ -255,6 +255,15 @@ void FMRadio::displayServiceInfo() {
     LOG_INFO("Displayed service information");
 }
 
+void FMRadio::updatePresetsServiceName(const ServiceInfo &info) {
+    for (auto &[frequency, name]: listPresets) {
+        if (frequency == info.frequency && strcmp(name, info.serviceName) != 0) {
+            LOG_DEBUG("Updating name of preset at %.1fMHz", frequency / 100.0);
+            strncpy(name, info.serviceName, 32);
+        }
+    }
+}
+
 void FMRadio::refreshInformation() {
     LOG_DEBUG("Loading new service information...");
     ServiceInfo newServiceInfo{};
@@ -295,9 +304,32 @@ void FMRadio::refreshInformation() {
     }
 
     serviceInfo.copyFrom(newServiceInfo);
+    if (strlen(serviceInfo.serviceName) == 0) {
+        // Maybe we have a service name in the presets
+        if (
+            const char *serviceName = getServiceNameFromPresets(dab->freq);
+            serviceName != nullptr
+        ) {
+            strcpy(serviceInfo.serviceName, serviceName);
+        }
+    }
     this->displayServiceInfo();
+
+    if (strlen(newServiceInfo.serviceName) > 0) {
+        // We need to update the presets
+        updatePresetsServiceName(newServiceInfo);
+    }
 }
 
+char *FMRadio::getServiceNameFromPresets(const uint16_t frequency) {
+    for (auto &[presetFrequency, presetName]: listPresets) {
+        if (presetFrequency == frequency) {
+            return presetName;
+        }
+    }
+
+    return nullptr;
+}
 
 void FMRadio::savePreferences() {
     preferences.putInt(MODE_KEY, currentMode);

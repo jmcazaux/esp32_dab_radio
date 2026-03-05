@@ -20,6 +20,7 @@ public:
 
     void refreshInformation() override;
 
+
     void tick() override;
 
     void tuneUp() override;
@@ -51,13 +52,15 @@ private:
 
     void tuneFrequency(TuneDirection direction);
 
-    void tuneListPreset(TuneDirection direction);
+    void tuneList(TuneDirection direction);
 
     void modeOrTuningChanged();
 
     void displayServiceInfo();
 
     void savePreferences();
+
+    char *getServiceNameFromPresets(uint16_t frequency);
 
     struct ServiceInfo {
         uint16_t frequency;
@@ -126,4 +129,6 @@ private:
     };
 
     std::vector<Preset> listPresets;
+
+    void updatePresetsServiceName(const ServiceInfo &serviceInfo);
 };
