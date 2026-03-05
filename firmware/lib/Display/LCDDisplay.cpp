@@ -24,8 +24,8 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
     nbColumns = lcdColumns;
     nbLines = lcdRows;
 
-    lines = new char*[nbLines];
-    for(uint8_t i = 0; i < nbLines; i++) {
+    lines = new char *[nbLines];
+    for (uint8_t i = 0; i < nbLines; i++) {
         lines[i] = new char[nbColumns + 1];
     }
 
@@ -64,7 +64,10 @@ void LCDDisplay::clearLine(u_int8_t line) {
         return;
     }
 
-    displayLine(" ", line, LEFT);
+    this->padOrTrim(" ", lines[line], nbColumns, LEFT);
+    lcd->setCursor(0, line);
+    lcd->print(lines[line]);
+    displaySources[line].setSource("", LEFT);
 }
 
 void LCDDisplay::displayLine(const char text[], uint8_t line, DisplayAlignment align) {
@@ -105,7 +108,7 @@ void LCDDisplay::displayJustified(const char leftText[], const char rightText[],
         buffer[nbColumns - i - 1] = rightText[rightTextLength - i - 1];
     }
 
-    if(leftTextLength + rightTextLength > nbColumns && rightTextLength < nbColumns) {
+    if (leftTextLength + rightTextLength > nbColumns && rightTextLength < nbColumns) {
         buffer[nbColumns - rightTextLength - 1] = '*';
     }
 
@@ -113,7 +116,7 @@ void LCDDisplay::displayJustified(const char leftText[], const char rightText[],
 }
 
 void LCDDisplay::displayProgress(const uint8_t progress, const uint8_t line) {
-    const uint8_t actualProgress = min(100,max(0, static_cast<int>(progress)));
+    const uint8_t actualProgress = min(100, max(0, static_cast<int>(progress)));
     const auto nbBlocks = static_cast<uint8_t>(round(actualProgress / (100.0 / nbColumns)));
     for (uint8_t i = 0; i < nbColumns; i++) {
         lcd->setCursor(i, line);
@@ -132,8 +135,8 @@ void LCDDisplay::tick(unsigned long millis) {
 
     lastCycleTime = millis;
 
-    for(uint8_t i = 0; i < nbLines; i++) {
-        DisplaySource* source = &displaySources[i];
+    for (uint8_t i = 0; i < nbLines; i++) {
+        DisplaySource *source = &displaySources[i];
         if (source->alignment == ROLLING_LEFT) {
             source->rollingIndex++;
             this->padOrTrim(source->source(), lines[i], nbColumns, source->alignment, source->rollingIndex);
@@ -143,12 +146,12 @@ void LCDDisplay::tick(unsigned long millis) {
     }
 }
 
-void LCDDisplay::DisplaySource::setSource(const char* source, DisplayAlignment align) {
+void LCDDisplay::DisplaySource::setSource(const char *source, DisplayAlignment align) {
     alignment = align;
     setSource(source);
 }
 
-void LCDDisplay::DisplaySource::setSource(const char* source) {
+void LCDDisplay::DisplaySource::setSource(const char *source) {
     if (_source != nullptr) {
         free(_source);
     }
@@ -160,6 +163,6 @@ void LCDDisplay::DisplaySource::setSource(const char* source) {
     rollingIndex = 0;
 }
 
-char* LCDDisplay::DisplaySource::source() const {
+char *LCDDisplay::DisplaySource::source() const {
     return _source;
 }

@@ -9,3 +9,7 @@ constexpr char SOURCE_BLUETOOTH[] = "Bluetooth";
 constexpr char MODE_MANUAL[] = "MAN";
 constexpr char MODE_LIST[] = "LIST";
 constexpr char MODE_MEMORY[] = "MEM";
+
+// Actions
+constexpr char REFRESHING_PRESETS[] = "Refreshing presets";
+constexpr char PRESET_ID_AND_FREQ[] = "> %02d : %.1fMHz";

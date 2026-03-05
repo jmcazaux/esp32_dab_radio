@@ -2,7 +2,7 @@
 
 #include <AudioSource.h>
 #include <Display.h>
-#include <LocalizedStrings.h>
+#include <SourceStrings.h>
 
 
 class Bluetooth : public AudioSource {

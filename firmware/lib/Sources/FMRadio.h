@@ -3,12 +3,16 @@
 #include <AudioSource.h>
 #include <DABShield.h>
 #include <Display.h>
-#include <LocalizedStrings.h>
+#include <SourceStrings.h>
+#include <SourceConstants.h>
+#include <vector>
 
 class FMRadio : public AudioSource {
 public:
     FMRadio(Display *display, DAB *dab) : AudioSource(SOURCE_FM_RADIO, true, false, true, display), dab(dab) {
     };
+
+    void displayNameAndMode() const;
 
     void activate() override;
 
@@ -26,13 +30,28 @@ public:
 
     void tuneDoublePressed() override;
 
+    void tuneLongPressed() override;
+
+    void modePressed() override;
+
+    void modeDoublePressed() override;
+
 private:
     DAB *dab;
     Preferences preferences;
     unsigned long lastTargetFrequencyChange = 0;
     uint16_t targetFrequency = 0;
+    uint8_t currentMode = 0;
+
+    uint8_t currentPresetIndex = 0;
+
+    void refreshListPresets();
 
     void offsetTargetFrequency(uint16_t frequencyInc);
+
+    void tuneFrequency(TuneDirection direction);
+
+    void tuneListPreset(TuneDirection direction);
 
     void modeOrTuningChanged();
 
@@ -55,7 +74,7 @@ private:
         int8_t signalStrength;
         int8_t snr;
 
-        // TODO: the below would rather be in the cpp file, but filed to do this
+        // TODO: the below would rather be in the cpp file, but failed to do this
         bool operator==(const ServiceInfo &other) const {
             if (this->frequency != other.frequency) return false;
 
@@ -100,4 +119,11 @@ private:
     };
 
     ServiceInfo serviceInfo{};
+
+    struct Preset {
+        uint16_t frequency = 0;
+        char name[32] = "";
+    };
+
+    std::vector<Preset> listPresets;
 };

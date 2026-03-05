@@ -12,6 +12,7 @@
 #include <Preferences.h>
 #include <RotaryEncoder.h>
 #include <SPI.h>
+#include <MainStrings.h>
 
 #include <string>
 
@@ -87,6 +88,7 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
+    display->displayLine(SWITCHING_RADIO_ON, 0);
     dab.setCallback(serviceData);
     dab.mute(true, true); // Avoid "tuning" noises
     dab.begin(1); // Actual mode set by the AudioSource
@@ -102,7 +104,9 @@ void disableRadio() {
     LOG_INFO("Switched radio OFF");
 }
 
-void switchSource(int fromSourceIdx, int toSourceIdx) {
+void switchSource(const int fromSourceIdx, const int toSourceIdx) {
+    display->clear();
+
     AudioSource *toSource = sources[toSourceIdx];
     AudioSource *fromSource = nullptr;
     if (fromSourceIdx >= 0) {
@@ -145,10 +149,12 @@ void switchSource(int fromSourceIdx, int toSourceIdx) {
 
 void selectorClicked() {
     LOG_DEBUG("Selector clicked");
+    sources[currentSourceIndex]->modePressed();
 }
 
 void selectorDoubleClicked() {
     LOG_DEBUG("Selector double-clicked");
+    sources[currentSourceIndex]->modeDoublePressed();
 }
 
 void selectorPressStart() {
@@ -234,7 +240,7 @@ void setup() {
     tuneButton.attachLongPressStop(tunePressStopped);
     LOG_INFO("Initialized buttons");
 
-    delay(800);
+    delay(1500);
 
     // Restoring previous source
     currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources; // Just to make sure
