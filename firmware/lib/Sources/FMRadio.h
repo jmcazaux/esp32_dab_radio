@@ -23,6 +23,7 @@ public:
 
     void tick() override;
 
+
     void tuneUp() override;
 
     void tuneDown() override;
@@ -32,6 +33,8 @@ public:
     void tuneDoublePressed() override;
 
     void tuneLongPressed() override;
+
+    void tuneReleased() override;
 
     void modePressed() override;
 
@@ -45,6 +48,8 @@ private:
     uint8_t currentMode = 0;
     uint8_t currentPresetIndex = 0;
     uint8_t currentMemoryIndex = 0;
+    bool memorizingPreset = false; // True when we are in the process of memorizing a preset
+    uint8_t targetMemoryPreset = 0; // Memory preset where
 
     void refreshListPresets();
 
@@ -54,7 +59,17 @@ private:
 
     void tuneList(TuneDirection direction);
 
+    void tuneMemory(TuneDirection direction);
+
+    void selectTargetMemoryPreset(TuneDirection direction);
+
     void modeOrTuningChanged();
+
+    void displayStandardInfo();
+
+    void displayInfoInMemorizingMode();
+
+    void displayInfoInManualTuningMode();
 
     void displayServiceInfo();
 
@@ -128,15 +143,18 @@ private:
     ServiceInfo serviceInfo{};
 
     struct Preset {
-        uint16_t frequency = 0;
+        uint16_t frequency = 8750;
         char name[32] = "";
     };
 
     std::vector<Preset> listPresets;
+    std::vector<Preset> memoryPresets;
 
     void updatePresetsServiceName(const ServiceInfo &serviceInfo);
 
     String presetsAsJson();
 
     void loadPresetsFromJson(String jsonString);
+
+    void tunePreset(const Preset &preset);
 };

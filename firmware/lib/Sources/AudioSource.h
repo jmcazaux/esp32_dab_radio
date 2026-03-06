@@ -34,6 +34,10 @@ public:
         // Intentionally blank. Override in concrete classes.
     };
 
+    virtual void tuneReleased() {
+        // Intentionally blank. Override in concrete classes.
+    };
+
     virtual void tuneDoublePressed() {
         // Intentionally blank. Override in concrete classes.
     };

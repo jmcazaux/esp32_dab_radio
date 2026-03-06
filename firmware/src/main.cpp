@@ -156,11 +156,11 @@ void selectorDoubleClicked() {
     sources[currentSourceIndex]->modeDoublePressed();
 }
 
-void selectorPressStart() {
+void selectorLongPressStarted() {
     LOG_DEBUG("Selector long-press started");
 }
 
-void selectorPressStopped() {
+void selectorLongPressStopped() {
     LOG_DEBUG("Selector long-press stopped");
 }
 
@@ -174,13 +174,14 @@ void tuneDoubleClicked() {
     sources[currentSourceIndex]->tuneDoublePressed();
 }
 
-void tunePressStart() {
+void tuneLongPressStarted() {
     LOG_DEBUG("Tune long-press started");
     sources[currentSourceIndex]->tuneLongPressed();
 }
 
-void tunePressStopped() {
+void tuneLongPressStopped() {
     LOG_DEBUG("Tune long-press stopped");
+    sources[currentSourceIndex]->tuneReleased();
 }
 
 void setup() {
@@ -229,14 +230,14 @@ void setup() {
     selectorButton.setClickMs(BUTTON_DOUBLECLICK_DELAY_MS);
     selectorButton.attachClick(selectorClicked);
     selectorButton.attachDoubleClick(selectorDoubleClicked);
-    selectorButton.attachLongPressStart(selectorPressStart);
-    selectorButton.attachLongPressStop(selectorPressStopped);
+    selectorButton.attachLongPressStart(selectorLongPressStarted);
+    selectorButton.attachLongPressStop(selectorLongPressStopped);
 
     tuneButton.setClickMs(BUTTON_DOUBLECLICK_DELAY_MS);
     tuneButton.attachClick(tuneClicked);
     tuneButton.attachDoubleClick(tuneDoubleClicked);
-    tuneButton.attachLongPressStart(tunePressStart);
-    tuneButton.attachLongPressStop(tunePressStopped);
+    tuneButton.attachLongPressStart(tuneLongPressStarted);
+    tuneButton.attachLongPressStop(tuneLongPressStopped);
     LOG_INFO("Initialized buttons");
 
     delay(1500);

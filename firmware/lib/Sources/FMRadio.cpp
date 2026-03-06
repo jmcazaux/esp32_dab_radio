@@ -11,11 +11,15 @@ constexpr char PREFERENCE_NAMESPACE[] = "fm_radio";
 constexpr char MODE_KEY[] = "mode";
 constexpr char FREQUENCY_KEY[] = "frequency";
 constexpr char LIST_PRESET_KEY[] = "list_preset";
+constexpr char MEMORY_PRESET_KEY[] = "memory_preset";
 
 constexpr char PRESET_FILE[] = "/fm_radio_presets.json";
 constexpr char LIST_PRESETS_JSON_KEY[] = "listPresets";
+constexpr char MEMORY_PRESETS_JSON_KEY[] = "memoryPresets";
 constexpr char NAME_JSON_KEY[] = "name";
 constexpr char FREQUENCY_JSON_KEY[] = "frequency";
+
+constexpr int MEMORY_PRESETS_SIZE = 10;
 
 constexpr uint16_t MIN_FM_FREQUENCY = 8750;
 constexpr uint16_t MAX_FM_FREQUENCY = 10790;
@@ -61,9 +65,14 @@ void FMRadio::activate() {
         max(0, preferences.getInt(LIST_PRESET_KEY, currentPresetIndex))
     );
 
-    LOG_INFO("%s restoring mode %s (MAN=%.1fMHz, LIST=%d)",
+    currentMemoryIndex = min(
+        static_cast<int>(memoryPresets.size() - 1),
+        max(0, preferences.getInt(MEMORY_PRESET_KEY, currentMemoryIndex))
+    );
+
+    LOG_INFO("%s restoring mode %s (MAN=%.1fMHz, LIST=%d, MEM=%d)",
              name, MODE_NAMES[currentMode],
-             previousFrequency / 100.0, currentPresetIndex
+             previousFrequency / 100.0, currentPresetIndex, currentMemoryIndex
     );
     displayNameAndMode();
 
@@ -75,9 +84,9 @@ void FMRadio::activate() {
         dab->tune(previousFrequency);
         serviceInfo.frequency = previousFrequency;
     } else if (currentMode == LIST) {
-        dab->tune(listPresets[currentPresetIndex].frequency);
-        serviceInfo.frequency = listPresets[currentPresetIndex].frequency;
-        strncpy(serviceInfo.serviceName, listPresets[currentPresetIndex].name, 32);
+        tunePreset(listPresets[currentPresetIndex]);
+    } else if (currentMode == MEMORY) {
+        tunePreset(memoryPresets[currentMemoryIndex]);
     }
 
     dab->speaker(SPEAKER_DIFF);
@@ -155,6 +164,13 @@ void FMRadio::offsetTargetFrequency(const uint16_t frequencyInc) {
     displayServiceInfo();
 }
 
+void FMRadio::tunePreset(const Preset &preset) {
+    dab->tune(preset.frequency);
+    serviceInfo.frequency = preset.frequency;
+    strncpy(serviceInfo.serviceName, preset.name, 32);
+}
+
+
 void FMRadio::tuneFrequency(const TuneDirection direction) {
     const uint16_t frequencyStep =
             direction * (millis() - lastTargetFrequencyChange < LARGER_FREQUENCY_STEP_DELAY_MS
@@ -175,7 +191,7 @@ void FMRadio::tuneList(const TuneDirection direction) {
     } else {
         currentPresetIndex = (currentPresetIndex + direction) % listPresets.size();
     }
-    LOG_DEBUG("Tuning to preset %d: %.1fMHz",
+    LOG_DEBUG("Tuning to list preset %d: %.1fMHz",
               currentPresetIndex,
               listPresets[currentPresetIndex].frequency / 100.0);
 
@@ -183,20 +199,52 @@ void FMRadio::tuneList(const TuneDirection direction) {
     modeOrTuningChanged();
 }
 
+void FMRadio::tuneMemory(TuneDirection direction) {
+    if (currentMemoryIndex == 0 && direction == TUNE_DOWN) {
+        currentMemoryIndex = memoryPresets.size() - 1;
+    } else {
+        currentMemoryIndex = (currentMemoryIndex + direction) % listPresets.size();
+    }
+    LOG_DEBUG("Tuning to memory preset %d: %.1fMHz",
+              currentMemoryIndex,
+              memoryPresets[currentMemoryIndex].frequency / 100.0);
+
+    dab->tune(memoryPresets[currentMemoryIndex].frequency);
+    modeOrTuningChanged();
+}
+
+void FMRadio::selectTargetMemoryPreset(TuneDirection direction) {
+    if (targetMemoryPreset == 0 && direction == TUNE_DOWN) {
+        targetMemoryPreset = memoryPresets.size() - 1;
+    } else {
+        targetMemoryPreset = (targetMemoryPreset + direction) % memoryPresets.size();
+    }
+    LOG_DEBUG("Selected target memory preset %d", targetMemoryPreset);
+    displayServiceInfo();
+}
+
 
 void FMRadio::tuneUp() {
-    if (currentMode == MANUAL) {
+    if (memorizingPreset) {
+        selectTargetMemoryPreset(TUNE_UP);
+    } else if (currentMode == MANUAL) {
         tuneFrequency(TUNE_UP);
     } else if (currentMode == LIST) {
         tuneList(TUNE_UP);
+    } else if (currentMode == MEMORY) {
+        tuneMemory(TUNE_UP);
     }
 }
 
 void FMRadio::tuneDown() {
-    if (currentMode == MANUAL) {
+    if (memorizingPreset) {
+        selectTargetMemoryPreset(TUNE_DOWN);
+    } else if (currentMode == MANUAL) {
         tuneFrequency(TUNE_DOWN);
     } else if (currentMode == LIST) {
         tuneList(TUNE_DOWN);
+    } else if (currentMode == MEMORY) {
+        tuneMemory(TUNE_DOWN);
     }
 }
 
@@ -225,7 +273,20 @@ void FMRadio::tuneDoublePressed() {
 }
 
 void FMRadio::tuneLongPressed() {
-    LOG_DEBUG("Would save current frequency to memory... NOT IMPLEMENTED YET.");
+    LOG_INFO("Entering memorizing mode...");
+    memorizingPreset = true;
+    displayServiceInfo();
+}
+
+void FMRadio::tuneReleased() {
+    LOG_INFO("Exiting memorizing mode...");
+    memorizingPreset = false;
+
+    memoryPresets[targetMemoryPreset].frequency = dab->freq;
+    strncpy(memoryPresets[targetMemoryPreset].name, serviceInfo.serviceName, 32);
+    targetMemoryPreset = 0;
+    displayServiceInfo();
+    savePresets();
 }
 
 void FMRadio::modePressed() {
@@ -235,13 +296,13 @@ void FMRadio::modePressed() {
 
 void FMRadio::modeDoublePressed() {
     refreshListPresets();
-};
+}
 
 void FMRadio::deactivate() {
     LOG_DEBUG("De-activating \"%s\"...", name);
     active = false;
     LOG_INFO("De-activated \"%s\"", name);
-};
+}
 
 void FMRadio::modeOrTuningChanged() {
     targetFrequency = dab->freq;
@@ -258,38 +319,76 @@ void FMRadio::modeOrTuningChanged() {
     this->savePreferences();
 }
 
+void FMRadio::displayStandardInfo() {
+    char freqBuffer[21];
+    sprintf(freqBuffer, "%.1fMHz", dab->freq / 100.0);
+
+    char nameBuffer[21];
+
+    // In case we have pressed 'TUNE' to seek up (or down) we do not want to show that we are on a preset
+    const bool isManuallyTuned =
+            (currentMode == LIST && dab->freq != listPresets[currentPresetIndex].frequency)
+            || (currentMode == MEMORY && dab->freq != memoryPresets[currentMemoryIndex].frequency);
+
+    if (currentMode == MANUAL || isManuallyTuned) {
+        strcpy(nameBuffer, serviceInfo.serviceName);
+    } else if (currentMode == LIST) {
+        sprintf(nameBuffer, "#%d %s", currentPresetIndex + 1, serviceInfo.serviceName);
+    } else if (currentMode == MEMORY) {
+        sprintf(nameBuffer, "M%02d %s", currentMemoryIndex + 1, serviceInfo.serviceName);
+    }
+
+    display->displayJustified(nameBuffer, freqBuffer, 1);
+    display->clearLine(2);
+
+    if (strlen(serviceInfo.serviceData) > 0) {
+        display->displayLine(serviceInfo.serviceData, 3, ROLLING_LEFT);
+    } else {
+        display->clearLine(3);
+    }
+}
+
+void FMRadio::displayInfoInMemorizingMode() {
+    char buffer[21];
+    auto [targetPresetFrequency, targetPresetName] = memoryPresets[targetMemoryPreset];
+
+    sprintf(buffer, MEMORIZING_FREQ, dab->freq / 100.0);
+    display->displayLine(buffer, 1);
+
+    if (targetPresetFrequency == MIN_FM_FREQUENCY && strlen(targetPresetName) == 0) {
+        // We would override something
+        sprintf(buffer, MEMORY_PRESET_ID_ONLY, targetMemoryPreset + 1);
+    } else {
+        // Nothing stored here yey
+        sprintf(buffer, MEMORY_PRESET_ID_AND_DETAILS, targetMemoryPreset + 1, targetPresetName,
+                targetPresetFrequency / 100.0);
+    }
+    display->displayLine(buffer, 2);
+
+    display->displayLine(RELEASE_TO_STORE, 3, CENTER);
+}
+
+void FMRadio::displayInfoInManualTuningMode() {
+    // We are tuning the frequency
+    char freqBuffer[21];
+    sprintf(freqBuffer, ">>> %.1fMHz", targetFrequency / 100.0);
+    display->displayLine(freqBuffer, 1, RIGHT);
+    if (strlen(serviceInfo.serviceData) > 0) {
+        strcpy(serviceInfo.serviceData, "");
+    }
+}
+
 void FMRadio::displayServiceInfo() {
     LOG_DEBUG("Displaying service information...");
 
     if (targetFrequency != dab->freq) {
-        // We are tuning the frequency
-        char freqBuffer[21];
-        sprintf(freqBuffer, ">>> %.1fMHz", targetFrequency / 100.0);
-        display->displayLine(freqBuffer, 1, RIGHT);
-        if (strlen(serviceInfo.serviceData) > 0) {
-            strcpy(serviceInfo.serviceData, "");
-        }
+        displayInfoInManualTuningMode();
+    } else if (memorizingPreset) {
+        displayInfoInMemorizingMode();
     } else {
-        char freqBuffer[21];
-        sprintf(freqBuffer, "%.1fMHz", dab->freq / 100.0);
-
-        char nameBuffer[21];
-        if (currentMode == MANUAL) {
-            strcpy(nameBuffer, serviceInfo.serviceName);
-        } else if (currentMode == LIST) {
-            sprintf(nameBuffer, "#%d %s", currentPresetIndex + 1, serviceInfo.serviceName);
-        } else if (currentMode == MEMORY) {
-            sprintf(nameBuffer, "M%02d %s", currentMemoryIndex + 1, serviceInfo.serviceName);
-        }
-
-        display->displayJustified(nameBuffer, freqBuffer, 1);
-
-        if (strlen(serviceInfo.serviceData) > 0) {
-            display->displayLine(serviceInfo.serviceData, 3, ROLLING_LEFT);
-        } else {
-            display->clearLine(3);
-        }
+        displayStandardInfo();
     }
+
     LOG_INFO("Displayed service information");
 }
 
@@ -309,9 +408,16 @@ String FMRadio::presetsAsJson() {
 
     // Serialize the list presets
     const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].to<JsonArray>();
+    const auto jsonMemoryPresets = doc[MEMORY_PRESETS_JSON_KEY].to<JsonArray>();
 
     for (auto &[presetFrequency, presetName]: listPresets) {
         auto preset = jsonListPresets.add<JsonObject>();
+        preset[NAME_JSON_KEY] = presetName;
+        preset[FREQUENCY_JSON_KEY] = presetFrequency;
+    }
+
+    for (auto &[presetFrequency, presetName]: memoryPresets) {
+        auto preset = jsonMemoryPresets.add<JsonObject>();
         preset[NAME_JSON_KEY] = presetName;
         preset[FREQUENCY_JSON_KEY] = presetFrequency;
     }
@@ -320,6 +426,7 @@ String FMRadio::presetsAsJson() {
 
     return output;
 }
+
 
 void FMRadio::loadPresetsFromJson(String jsonString) {
     JsonDocument doc;
@@ -338,14 +445,25 @@ void FMRadio::loadPresetsFromJson(String jsonString) {
     listPresets.clear(); // Most certainly useless, but yet.
     const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].as<JsonArray>();
 
-    for (JsonObject jsonListPreset: jsonListPresets) {
+    for (JsonObject preset: jsonListPresets) {
         auto newPreset = Preset{};
-        strncpy(newPreset.name, jsonListPreset[NAME_JSON_KEY], 32);
-        newPreset.frequency = jsonListPreset[FREQUENCY_JSON_KEY];
+        strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+        newPreset.frequency = preset[FREQUENCY_JSON_KEY];
         listPresets.emplace_back(newPreset);
     }
 
-    LOG_INFO("Presets loaded: %d list presets", listPresets.size());
+    // Loading memory presets
+    memoryPresets.clear();
+    const auto jsonMemoryPresets = doc[MEMORY_PRESETS_JSON_KEY].as<JsonArray>();
+
+    for (JsonObject preset: jsonMemoryPresets) {
+        auto newPreset = Preset{};
+        strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+        newPreset.frequency = preset[FREQUENCY_JSON_KEY];
+        memoryPresets.emplace_back(newPreset);
+    }
+
+    LOG_INFO("Presets loaded: %d list presets, %d memory presets", listPresets.size(), memoryPresets.size());
 }
 
 void FMRadio::refreshInformation() {
@@ -422,6 +540,8 @@ void FMRadio::savePreferences() {
         preferences.putInt(FREQUENCY_KEY, serviceInfo.frequency);
     } else if (currentMode == LIST) {
         preferences.putInt(LIST_PRESET_KEY, currentPresetIndex);
+    } else if (currentMode == MEMORY) {
+        preferences.putInt(MEMORY_PRESET_KEY, currentMemoryIndex);
     }
     LOG_INFO("Saved preferences");
 }
@@ -443,6 +563,10 @@ void FMRadio::loadPresets() {
     Serial.println("------------------");
 
     loadPresetsFromJson(jsonString);
+
+    for (auto i = memoryPresets.size(); i < MEMORY_PRESETS_SIZE; i++) {
+        memoryPresets.emplace_back(Preset{});
+    }
 
     LOG_INFO("Loaded presets from %s: %d list presets", PRESET_FILE, listPresets.size());
 }
@@ -469,3 +593,4 @@ void FMRadio::savePresets() {
 
     file.close();
 }
+
