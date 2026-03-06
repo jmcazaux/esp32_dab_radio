@@ -88,7 +88,7 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
-    display->displayLine(SWITCHING_RADIO_ON, 0);
+    display->displayLine(SWITCHING_RADIO_ON, 2, CENTER);
     dab.setCallback(serviceData);
     dab.mute(true, true); // Avoid "tuning" noises
     dab.begin(1); // Actual mode set by the AudioSource
@@ -105,8 +105,6 @@ void disableRadio() {
 }
 
 void switchSource(const int fromSourceIdx, const int toSourceIdx) {
-    display->clear();
-
     AudioSource *toSource = sources[toSourceIdx];
     AudioSource *fromSource = nullptr;
     if (fromSourceIdx >= 0) {
@@ -139,6 +137,7 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
 
     // TODO:Bluetooth
 
+    display->clear();
     toSource->activate();
 
     currentSourceIndex = toSourceIdx;
@@ -273,14 +272,14 @@ void loop() {
     if (selectorPosition != newSelectorPosition) {
         selectorPosition = newSelectorPosition;
         if (lastSelectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
-            int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
+            const int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
             selectedSourceIndex = (selectedSourceIndex + step) % nbSources; // Keep in [0..nbSources]
             // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
             selectedSourceIndex = (selectedSourceIndex < 0 ? selectedSourceIndex + nbSources : selectedSourceIndex);
             lastSelectedSourceTime = millis();
 
             LOG_INFO("Selecting source #%d - %s", selectedSourceIndex, sources[selectedSourceIndex]->name);
-
+            display->clear();
             display->displayLine(sources[selectedSourceIndex]->name, 0);
         }
     }

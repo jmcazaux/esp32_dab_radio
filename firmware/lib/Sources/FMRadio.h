@@ -43,8 +43,8 @@ private:
     unsigned long lastTargetFrequencyChange = 0;
     uint16_t targetFrequency = 0;
     uint8_t currentMode = 0;
-
     uint8_t currentPresetIndex = 0;
+    uint8_t currentMemoryIndex = 0;
 
     void refreshListPresets();
 
@@ -59,6 +59,10 @@ private:
     void displayServiceInfo();
 
     void savePreferences();
+
+    void loadPresets();
+
+    void savePresets();
 
     char *getServiceNameFromPresets(uint16_t frequency);
 
@@ -131,4 +135,8 @@ private:
     std::vector<Preset> listPresets;
 
     void updatePresetsServiceName(const ServiceInfo &serviceInfo);
+
+    String presetsAsJson();
+
+    void loadPresetsFromJson(String jsonString);
 };

@@ -2,6 +2,7 @@
 #include <AdvancedLogger.h>
 #include <FMRadio.h>
 #include <StringUtils.h>
+#include <ArduinoJson.h>
 
 #include <SourceStrings.h>
 #include <SourceConstants.h>
@@ -9,6 +10,13 @@
 constexpr char PREFERENCE_NAMESPACE[] = "fm_radio";
 constexpr char MODE_KEY[] = "mode";
 constexpr char FREQUENCY_KEY[] = "frequency";
+constexpr char LIST_PRESET_KEY[] = "list_preset";
+
+constexpr char PRESET_FILE[] = "/fm_radio_presets.json";
+constexpr char LIST_PRESETS_JSON_KEY[] = "listPresets";
+constexpr char NAME_JSON_KEY[] = "name";
+constexpr char FREQUENCY_JSON_KEY[] = "frequency";
+
 constexpr uint16_t MIN_FM_FREQUENCY = 8750;
 constexpr uint16_t MAX_FM_FREQUENCY = 10790;
 
@@ -37,6 +45,8 @@ void FMRadio::activate() {
         displayNameAndMode();
         return;
     }
+    LOG_INFO("Restoring presets...");
+    loadPresets();
 
     // Restoring previous mode & frequency
     preferences.begin(PREFERENCE_NAMESPACE, false);
@@ -46,18 +56,34 @@ void FMRadio::activate() {
     previousFrequency = max(previousFrequency, MIN_FM_FREQUENCY);
     previousFrequency = min(previousFrequency, MAX_FM_FREQUENCY);
 
-    LOG_INFO("%s restoring mode %s: %.1fMHz", name, MODE_NAMES[currentMode], previousFrequency / 100.0);
+    currentPresetIndex = min(
+        static_cast<int>(listPresets.size() - 1),
+        max(0, preferences.getInt(LIST_PRESET_KEY, currentPresetIndex))
+    );
+
+    LOG_INFO("%s restoring mode %s (MAN=%.1fMHz, LIST=%d)",
+             name, MODE_NAMES[currentMode],
+             previousFrequency / 100.0, currentPresetIndex
+    );
     displayNameAndMode();
 
     // Actually activate the source
+    dab->mute(true, true);
     dab->begin(1); // FM Mode
-    dab->tune(previousFrequency);
+
+    if (currentMode == MANUAL) {
+        dab->tune(previousFrequency);
+        serviceInfo.frequency = previousFrequency;
+    } else if (currentMode == LIST) {
+        dab->tune(listPresets[currentPresetIndex].frequency);
+        serviceInfo.frequency = listPresets[currentPresetIndex].frequency;
+        strncpy(serviceInfo.serviceName, listPresets[currentPresetIndex].name, 32);
+    }
 
     dab->speaker(SPEAKER_DIFF);
     dab->vol(35);
     dab->mute(false, false);
 
-    serviceInfo.frequency = previousFrequency;
     this->modeOrTuningChanged();
 
     active = true;
@@ -74,6 +100,7 @@ void FMRadio::tick() {
 }
 
 void FMRadio::refreshListPresets() {
+    LOG_DEBUG("Refreshing list presets...");
     display->displayLine(REFRESHING_PRESETS, 1, CENTER);
     display->clearLine(2);
     display->clearLine(3);
@@ -116,6 +143,8 @@ void FMRadio::refreshListPresets() {
     display->clearLine(2);
     display->clearLine(3);
     displayServiceInfo();
+    LOG_INFO("Refreshed list presets (found %d stations)... Saving.", listPresets.size());
+    savePresets();
 }
 
 void FMRadio::offsetTargetFrequency(const uint16_t frequencyInc) {
@@ -141,7 +170,7 @@ void FMRadio::tuneFrequency(const TuneDirection direction) {
 
 
 void FMRadio::tuneList(const TuneDirection direction) {
-    if (currentPresetIndex == 00 && direction == TUNE_DOWN) {
+    if (currentPresetIndex == 0 && direction == TUNE_DOWN) {
         currentPresetIndex = listPresets.size() - 1;
     } else {
         currentPresetIndex = (currentPresetIndex + direction) % listPresets.size();
@@ -244,7 +273,16 @@ void FMRadio::displayServiceInfo() {
         char freqBuffer[21];
         sprintf(freqBuffer, "%.1fMHz", dab->freq / 100.0);
 
-        display->displayJustified(serviceInfo.serviceName, freqBuffer, 1);
+        char nameBuffer[21];
+        if (currentMode == MANUAL) {
+            strcpy(nameBuffer, serviceInfo.serviceName);
+        } else if (currentMode == LIST) {
+            sprintf(nameBuffer, "#%d %s", currentPresetIndex + 1, serviceInfo.serviceName);
+        } else if (currentMode == MEMORY) {
+            sprintf(nameBuffer, "M%02d %s", currentMemoryIndex + 1, serviceInfo.serviceName);
+        }
+
+        display->displayJustified(nameBuffer, freqBuffer, 1);
 
         if (strlen(serviceInfo.serviceData) > 0) {
             display->displayLine(serviceInfo.serviceData, 3, ROLLING_LEFT);
@@ -260,8 +298,54 @@ void FMRadio::updatePresetsServiceName(const ServiceInfo &info) {
         if (frequency == info.frequency && strcmp(name, info.serviceName) != 0) {
             LOG_DEBUG("Updating name of preset at %.1fMHz", frequency / 100.0);
             strncpy(name, info.serviceName, 32);
+
+            savePresets();
         }
     }
+}
+
+String FMRadio::presetsAsJson() {
+    JsonDocument doc;
+
+    // Serialize the list presets
+    const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].to<JsonArray>();
+
+    for (auto &[presetFrequency, presetName]: listPresets) {
+        auto preset = jsonListPresets.add<JsonObject>();
+        preset[NAME_JSON_KEY] = presetName;
+        preset[FREQUENCY_JSON_KEY] = presetFrequency;
+    }
+    String output;
+    serializeJson(doc, output);
+
+    return output;
+}
+
+void FMRadio::loadPresetsFromJson(String jsonString) {
+    JsonDocument doc;
+    const DeserializationError error = deserializeJson(doc, jsonString);
+    if (error) {
+        LOG_ERROR(
+            "Got \"%s\" error while deserializing presets from the below JSON:\n---\n%s\n---",
+            error.c_str(),
+            jsonString.c_str()
+        );
+        LOG_ERROR("Presets wont' be deserialized...");
+        return;
+    }
+
+    // Loading list presets
+    listPresets.clear(); // Most certainly useless, but yet.
+    const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].as<JsonArray>();
+
+    for (JsonObject jsonListPreset: jsonListPresets) {
+        auto newPreset = Preset{};
+        strncpy(newPreset.name, jsonListPreset[NAME_JSON_KEY], 32);
+        newPreset.frequency = jsonListPreset[FREQUENCY_JSON_KEY];
+        listPresets.emplace_back(newPreset);
+    }
+
+    LOG_INFO("Presets loaded: %d list presets", listPresets.size());
 }
 
 void FMRadio::refreshInformation() {
@@ -332,6 +416,56 @@ char *FMRadio::getServiceNameFromPresets(const uint16_t frequency) {
 }
 
 void FMRadio::savePreferences() {
+    LOG_DEBUG("Saving preferences...");
     preferences.putInt(MODE_KEY, currentMode);
-    preferences.putInt(FREQUENCY_KEY, serviceInfo.frequency);
+    if (currentMode == MANUAL) {
+        preferences.putInt(FREQUENCY_KEY, serviceInfo.frequency);
+    } else if (currentMode == LIST) {
+        preferences.putInt(LIST_PRESET_KEY, currentPresetIndex);
+    }
+    LOG_INFO("Saved preferences");
+}
+
+void FMRadio::loadPresets() {
+    LOG_DEBUG("Loading presets from %s...", PRESET_FILE);
+    File file = LittleFS.open(PRESET_FILE, FILE_READ);
+    if (!file) {
+        LOG_ERROR("Failed to open preset file %s for read... Presets won't be loaded.", PRESET_FILE);
+        return;
+    }
+    String jsonString = "";
+    while (file.available()) {
+        jsonString += static_cast<char>(file.read());
+    }
+    file.close();
+    Serial.println("---Presets file---");
+    Serial.println(jsonString);
+    Serial.println("------------------");
+
+    loadPresetsFromJson(jsonString);
+
+    LOG_INFO("Loaded presets from %s: %d list presets", PRESET_FILE, listPresets.size());
+}
+
+
+void FMRadio::savePresets() {
+    const String jsonString = presetsAsJson();
+    Serial.println("---JSON presets---");
+    Serial.println(jsonString);
+    Serial.println("------------------");
+
+    File file = LittleFS.open(PRESET_FILE, FILE_WRITE);
+    if (!file) {
+        LOG_ERROR("Failed to open preset file %s for write... Presets won't be saved.", PRESET_FILE);
+        return;
+    }
+
+    if (file.print(jsonString)) {
+        LOG_INFO("Saved presets (%d list presets)...", listPresets.size());
+    } else {
+        LOG_ERROR("Failed to write presets to file %s for write... Presets won't be saved.", PRESET_FILE);
+        return;
+    }
+
+    file.close();
 }
