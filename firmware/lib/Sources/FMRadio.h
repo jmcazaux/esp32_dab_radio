@@ -3,34 +3,83 @@
 #include <AudioSource.h>
 #include <DABShield.h>
 #include <Display.h>
-
-static const char FM_RADIO[] = "Radio FM";
+#include <SourceStrings.h>
+#include <SourceConstants.h>
+#include <vector>
 
 class FMRadio : public AudioSource {
-   public:
-    FMRadio(Display* display, DAB *dab) : AudioSource(FM_RADIO, true, false, true, display), dab(dab) {};
+public:
+    FMRadio(Display *display, DAB *dab) : AudioSource(SOURCE_FM_RADIO, true, false, true, display), dab(dab) {
+    };
+
+    void displayNameAndMode() const;
 
     void activate() override;
+
     void deactivate() override;
+
     void refreshInformation() override;
+
 
     void tick() override;
 
+
     void tuneUp() override;
+
     void tuneDown() override;
+
     void tunePressed() override;
+
     void tuneDoublePressed() override;
 
-   private:
-    DAB* dab;
+    void tuneLongPressed() override;
+
+    void tuneReleased() override;
+
+    void modePressed() override;
+
+    void modeDoublePressed() override;
+
+private:
+    DAB *dab;
     Preferences preferences;
     unsigned long lastTargetFrequencyChange = 0;
     uint16_t targetFrequency = 0;
+    uint8_t currentMode = 0;
+    uint8_t currentPresetIndex = 0;
+    uint8_t currentMemoryIndex = 0;
+    bool memorizingPreset = false; // True when we are in the process of memorizing a preset
+    uint8_t targetMemoryPreset = 0; // Memory preset where
+
+    void refreshListPresets();
 
     void offsetTargetFrequency(uint16_t frequencyInc);
+
+    void tuneFrequency(TuneDirection direction);
+
+    void tuneList(TuneDirection direction);
+
+    void tuneMemory(TuneDirection direction);
+
+    void selectTargetMemoryPreset(TuneDirection direction);
+
     void modeOrTuningChanged();
+
+    void displayStandardInfo();
+
+    void displayInfoInMemorizingMode();
+
+    void displayInfoInManualTuningMode();
+
     void displayServiceInfo();
+
     void savePreferences();
+
+    void loadPresets();
+
+    void savePresets();
+
+    char *getServiceNameFromPresets(uint16_t frequency);
 
     struct ServiceInfo {
         uint16_t frequency;
@@ -47,8 +96,8 @@ class FMRadio : public AudioSource {
         int8_t signalStrength;
         int8_t snr;
 
-        // TODO: the below would rather be in the cpp file, but filed to do this
-        bool operator==(const ServiceInfo& other) const {
+        // TODO: the below would rather be in the cpp file, but failed to do this
+        bool operator==(const ServiceInfo &other) const {
             if (this->frequency != other.frequency) return false;
 
             if (this->year != other.year) return false;
@@ -66,7 +115,7 @@ class FMRadio : public AudioSource {
             return true;
         };
 
-        void copyFrom(const ServiceInfo& other) {
+        void copyFrom(const ServiceInfo &other) {
             this->frequency = other.frequency;
 
             this->year = other.year;
@@ -91,5 +140,21 @@ class FMRadio : public AudioSource {
         };
     };
 
-    ServiceInfo serviceInfo {};
+    ServiceInfo serviceInfo{};
+
+    struct Preset {
+        uint16_t frequency = 8750;
+        char name[32] = "";
+    };
+
+    std::vector<Preset> listPresets;
+    std::vector<Preset> memoryPresets;
+
+    void updatePresetsServiceName(const ServiceInfo &serviceInfo);
+
+    String presetsAsJson();
+
+    void loadPresetsFromJson(String jsonString);
+
+    void tunePreset(const Preset &preset);
 };

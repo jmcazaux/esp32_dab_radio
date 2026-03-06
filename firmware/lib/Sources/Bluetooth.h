@@ -2,10 +2,11 @@
 
 #include <AudioSource.h>
 #include <Display.h>
+#include <SourceStrings.h>
 
-static const char BLUETOOTH[] = "Bluetooth";
 
 class Bluetooth : public AudioSource {
-   public:
-    Bluetooth(Display* display) : AudioSource(BLUETOOTH, false, true, false, display) {};
+public:
+    Bluetooth(Display *display) : AudioSource(SOURCE_BLUETOOTH, false, true, false, display) {
+    };
 };
