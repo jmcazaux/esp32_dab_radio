@@ -75,7 +75,7 @@ void logFrequencies() {
 
 void serviceData() {
     LOG_DEBUG("Got service data...", currentSourceIndex);
-    sources[currentSourceIndex]->refreshInformation();
+    sources[currentSourceIndex]->displayInformation();
 }
 
 void DABSpiMsg(unsigned char *data, uint32_t len) {
