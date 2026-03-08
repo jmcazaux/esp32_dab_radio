@@ -1,10 +1,464 @@
 #include <DABRadio.h>
+#include <AdvancedLogger.h>
+#include <ArduinoJson.h>
+#include <StringUtils.h>
 
-void DABRadio::deactivate() {
+#include <SourceStrings.h>
+#include <SourceConstants.h>
 
+constexpr char PREFERENCE_NAMESPACE[] = "dab_radio";
+constexpr char MODE_KEY[] = "mode";
+constexpr char LIST_PRESET_KEY[] = "list_preset";
+constexpr char MEMORY_PRESET_KEY[] = "memory_preset";
+
+constexpr char PRESET_FILE[] = "/dab_radio_presets.json";
+constexpr char LIST_PRESETS_JSON_KEY[] = "listPresets";
+constexpr char MEMORY_PRESETS_JSON_KEY[] = "memoryPresets";
+constexpr char NAME_JSON_KEY[] = "name";
+constexpr char ENSEMBLE_ID_JSON_KEY[] = "ensembleId";
+constexpr char SERVICE_ID_JSON_KEY[] = "serviceId";
+constexpr char COMP_ID_JSON_KEY[] = "compId";
+
+constexpr int MEMORY_PRESETS_SIZE = 10;
+
+constexpr long DAB_STATUS_REFRESH_DELAY = 15000;
+
+enum class DABMode {
+    LIST,
+    MEMORY
 };
+
+static const char *MODE_NAMES[] = {MODE_LIST, MODE_MEMORY};
 
 void DABRadio::activate() {
+    LOG_DEBUG("Activating FM source \"%s\"...", name);
+    if (this->isActive()) {
+        // Only refresh the display
+        displayNameAndMode();
+        return;
+    }
+    LOG_INFO("Restoring presets...");
+    loadPresets();
+
+    // Restoring previous mode & frequency
+    preferences.begin(PREFERENCE_NAMESPACE, false);
+    const uint8_t previousMode = preferences.getInt(MODE_KEY, currentMode);
+    currentMode = min(static_cast<int>(previousMode), static_cast<int>(std::size(MODE_NAMES)) - 1);
+
+    currentPresetIndex = min(
+        static_cast<int>(listPresets.size() - 1),
+        max(0, preferences.getInt(LIST_PRESET_KEY, currentPresetIndex))
+    );
+
+    currentMemoryIndex = min(
+        static_cast<int>(memoryPresets.size() - 1),
+        max(0, preferences.getInt(MEMORY_PRESET_KEY, currentMemoryIndex))
+    );
+
+    LOG_INFO("%s restoring mode %s (LIST=%d, MEM=%d)",
+             name, MODE_NAMES[currentMode], currentPresetIndex, currentMemoryIndex
+    );
+    displayNameAndMode();
 
 
-};
+    // Actually activate the source
+    dab->mute(true, true);
+    dab->begin(0); // DAB Mode
+
+    Preset previousPreset;
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        previousPreset = listPresets[currentPresetIndex];
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        previousPreset = memoryPresets[currentMemoryIndex];
+    }
+
+    tunePreset(previousPreset);
+
+    dab->speaker(SPEAKER_DIFF);
+    dab->vol(35);
+    dab->mute(false, false);
+
+    active = true;
+    LOG_INFO("Activated FM source \"%s\"", name);
+}
+
+void DABRadio::tunePreset(Preset preset) {
+    LOG_DEBUG("Tuning preset \"%s\"...", preset.name);
+    dab->tune(preset.dabEnsemble);
+    dab->set_service(preset.serviceId);
+    serviceInfo.clear();
+    strcpy(serviceInfo.serviceName, preset.name);
+    modeOrTuningChanged();
+    LOG_INFO("Tuned preset \"%s\" (ensemble %d, service %d)", preset.name, preset.dabEnsemble, preset.serviceId);
+}
+
+void DABRadio::tuneList(TuneDirection direction) {
+    if (currentPresetIndex == 0 && direction == TUNE_DOWN) {
+        currentPresetIndex = listPresets.size() - 1;
+    } else {
+        currentPresetIndex = (currentPresetIndex + direction) % listPresets.size();
+    }
+    LOG_DEBUG("Tuning to list preset %d \"%s\"",
+              currentPresetIndex,
+              listPresets[currentPresetIndex].name);
+
+    tunePreset(listPresets[currentPresetIndex]);
+}
+
+void DABRadio::tuneMemory(TuneDirection direction) {
+    if (currentMemoryIndex == 0 && direction == TUNE_DOWN) {
+        currentMemoryIndex = memoryPresets.size() - 1;
+    } else {
+        currentMemoryIndex = (currentMemoryIndex + direction) % memoryPresets.size();
+    }
+    LOG_DEBUG("Tuning to list preset %d \"%s\"",
+              currentMemoryIndex,
+              memoryPresets[currentMemoryIndex].name);
+
+    tunePreset(memoryPresets[currentMemoryIndex]);
+}
+
+void DABRadio::tuneUp() {
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        tuneList(TUNE_UP);
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        tuneMemory(TUNE_UP);
+    }
+}
+
+void DABRadio::tuneDown() {
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        tuneList(TUNE_DOWN);
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        tuneMemory(TUNE_DOWN);
+    }
+}
+
+void DABRadio::modeDoublePressed() {
+    refreshListPresets();
+}
+
+void DABRadio::displayInformation() {
+    LOG_DEBUG("Getting service information...");
+    ServiceInfo newServiceInfo;
+    newServiceInfo.copyFrom(serviceInfo);
+    if ((lastDabStatusRefresh + DAB_STATUS_REFRESH_DELAY) < millis()) {
+        serviceInfo.bitRate = dab->bitrate;
+        serviceInfo.sampleRate = dab->samplerate;
+        serviceInfo.dabPlus = dab->dabplus;
+        serviceInfo.signalStrength = dab->signalstrength;
+        serviceInfo.snr = dab->snr;
+        serviceInfo.quality = dab->quality;
+        dab->status();
+        lastDabStatusRefresh = millis();
+    }
+
+    strcpy(serviceInfo.serviceData, dab->ServiceData);
+    if (serviceInfo == newServiceInfo) {
+        LOG_DEBUG("Service information did not change... Keeping it.");
+        return;
+    }
+
+    LOG_INFO(
+        "Got new service information for \"%s\":\n > Data: %s\n > Bitrate: %dkHz\n > Sample rate: %dkHz\n > Quality: %d%%\n > DAB+: %d",
+        serviceInfo.serviceName,
+        serviceInfo.serviceData,
+        serviceInfo.bitRate,
+        serviceInfo.sampleRate,
+        serviceInfo.quality,
+        serviceInfo.dabPlus);
+
+    displayServiceInfo();
+}
+
+void DABRadio::modeOrTuningChanged() {
+    if (listPresets.empty()) {
+        LOG_INFO("Preset list is empty... Triggering refresh.");
+        refreshListPresets();
+    }
+
+    this->displayInformation();
+    this->savePreferences();
+}
+
+
+void DABRadio::displayServiceInfo() {
+    char buffer[32];
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        sprintf(buffer, "#%d %s", currentPresetIndex, listPresets[currentPresetIndex].name);
+    } else {
+        sprintf(buffer, "M%02d %s", currentMemoryIndex, listPresets[currentPresetIndex].name);
+    }
+    display->displayLine(buffer, 1);
+
+    if (strlen(serviceInfo.serviceData) > 0) {
+        display->displayLine(serviceInfo.serviceData, 2, ROLLING_LEFT);
+    } else {
+        display->clearLine(2);
+    }
+
+    sprintf(buffer, "%s %dKHz %d%%", serviceInfo.dabPlus ? "DAB+" : "DAB", serviceInfo.bitRate, serviceInfo.quality);
+    display->displayLine(buffer, 3, CENTER);
+}
+
+DABRadio::Preset DABRadio::getPresetFromJson(JsonObject preset) {
+    auto newPreset = Preset{};
+    strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+    newPreset.dabEnsemble = preset[ENSEMBLE_ID_JSON_KEY];
+    newPreset.serviceId = preset[SERVICE_ID_JSON_KEY];
+    newPreset.compId = preset[COMP_ID_JSON_KEY];
+    return newPreset;
+}
+
+void DABRadio::loadPresetsFromJson(const String &jsonString) {
+    JsonDocument doc;
+    const DeserializationError error = deserializeJson(doc, jsonString);
+    if (error) {
+        LOG_ERROR(
+            "Got \"%s\" error while deserializing presets from the below JSON:\n---\n%s\n---",
+            error.c_str(),
+            jsonString.c_str()
+        );
+        LOG_ERROR("Presets wont' be deserialized...");
+        return;
+    }
+
+    // Loading list presets
+    listPresets.clear(); // Most certainly useless, but yet.
+    const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].as<JsonArray>();
+
+    for (JsonObject preset: jsonListPresets) {
+        listPresets.emplace_back(getPresetFromJson(preset));
+    }
+
+    // Loading memory presets
+    memoryPresets.clear();
+    const auto jsonMemoryPresets = doc[MEMORY_PRESETS_JSON_KEY].as<JsonArray>();
+
+    for (JsonObject preset: jsonMemoryPresets) {
+        memoryPresets.emplace_back(getPresetFromJson(preset));
+    }
+
+    LOG_INFO("Presets loaded: %d list presets, %d memory presets", listPresets.size(), memoryPresets.size());
+}
+
+void DABRadio::loadPresets() {
+    LOG_DEBUG("Loading presets from %s...", PRESET_FILE);
+    File file = LittleFS.open(PRESET_FILE, FILE_READ);
+    if (!file) {
+        LOG_ERROR("Failed to open preset file %s for read... Presets won't be loaded.", PRESET_FILE);
+        return;
+    }
+    String jsonString = "";
+    while (file.available()) {
+        jsonString += static_cast<char>(file.read());
+    }
+    file.close();
+    Serial.println("---Presets file---");
+    Serial.println(jsonString);
+    Serial.println("------------------");
+
+    loadPresetsFromJson(jsonString);
+
+    for (auto i = memoryPresets.size(); i < MEMORY_PRESETS_SIZE; i++) {
+        memoryPresets.emplace_back(Preset{});
+    }
+
+    LOG_INFO("Loaded presets from %s: %d list presets", PRESET_FILE, listPresets.size());
+}
+
+void DABRadio::addPresetToJsonArray(const JsonArray presetsArray, Preset preset) {
+    auto jsonPreset = presetsArray.add<JsonObject>();
+    jsonPreset[NAME_JSON_KEY] = preset.name;
+    jsonPreset[ENSEMBLE_ID_JSON_KEY] = preset.dabEnsemble;
+    jsonPreset[SERVICE_ID_JSON_KEY] = preset.serviceId;
+    jsonPreset[COMP_ID_JSON_KEY] = preset.compId;
+}
+
+String DABRadio::presetsAsJson() const {
+    JsonDocument doc;
+
+    // Serialize the list presets
+    const auto jsonListPresets = doc[LIST_PRESETS_JSON_KEY].to<JsonArray>();
+    const auto jsonMemoryPresets = doc[MEMORY_PRESETS_JSON_KEY].to<JsonArray>();
+
+    for (const auto preset: listPresets) {
+        addPresetToJsonArray(jsonListPresets, preset);
+    }
+
+    for (const auto preset: memoryPresets) {
+        addPresetToJsonArray(jsonMemoryPresets, preset);
+    }
+
+    String output;
+    serializeJson(doc, output);
+
+    return output;
+}
+
+void DABRadio::savePresets() const {
+    const String jsonString = presetsAsJson();
+    Serial.println("---JSON presets---");
+    Serial.println(jsonString);
+    Serial.println("------------------");
+
+    File file = LittleFS.open(PRESET_FILE, FILE_WRITE);
+    if (!file) {
+        LOG_ERROR("Failed to open preset file %s for write... Presets won't be saved.", PRESET_FILE);
+        return;
+    }
+
+    if (file.print(jsonString)) {
+        LOG_INFO("Saved presets (%d list presets)...", listPresets.size());
+    } else {
+        LOG_ERROR("Failed to write presets to file %s for write... Presets won't be saved.", PRESET_FILE);
+        return;
+    }
+
+    file.close();
+}
+
+void DABRadio::savePreferences() {
+    LOG_DEBUG("Saving preferences...");
+    preferences.putInt(MODE_KEY, currentMode);
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        preferences.putInt(LIST_PRESET_KEY, currentPresetIndex);
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        preferences.putInt(MEMORY_PRESET_KEY, currentMemoryIndex);
+    }
+    LOG_INFO("Saved preferences (mode %s, LIST=%d, MEM=%d)", MODE_NAMES[currentMode], currentPresetIndex,
+             currentMemoryIndex);
+}
+
+void DABRadio::displayNameAndMode() const {
+    display->displayJustified(name, MODE_NAMES[currentMode], 0);
+}
+
+
+void DABRadio::refreshListPresets() {
+    LOG_DEBUG("Refreshing list presets...");
+    display->displayLine(REFRESHING_PRESETS, 1, CENTER);
+    display->clearLine(2);
+    display->clearLine(3);
+
+    const uint8_t currentFrequencyIndex = dab->freq_index;
+    dab->mute(true, true);
+    char idAndNamBuffer[32];
+
+    listPresets.clear();
+
+    for (uint8_t frequencyIndex = 0; frequencyIndex < DAB_FREQS; frequencyIndex++) {
+        const auto progress = static_cast<uint8_t>(round(
+            100.0 * static_cast<double>(frequencyIndex) / DAB_FREQS));
+        display->displayProgress(progress, 3);
+
+        LOG_DEBUG("Looking into ensemble #%d - %.3fMHz (%d%%)...", frequencyIndex,
+                  dab->freq_khz(frequencyIndex) / 1000.0,
+                  progress);
+        dab->tune(frequencyIndex);
+        if (!dab->servicevalid()) {
+            // Nothing here...
+            continue;
+        }
+
+        LOG_DEBUG("Found ensemble at #%d. Saving services...", frequencyIndex);
+
+        for (auto i = 0; i < dab->numberofservices; i++) {
+            dab->status(dab->service[i].ServiceID, dab->service[i].CompID);
+            if (dab->type == SERVICE_AUDIO) {
+                // Save the preset
+                auto newPreset = Preset{};
+                newPreset.dabEnsemble = frequencyIndex;
+                newPreset.serviceId = i;
+                newPreset.compId = dab->service[i].CompID;
+                strncpy(newPreset.name, dab->service[i].Label, 32);
+                trim(newPreset.name);
+
+                listPresets.emplace_back(newPreset);
+
+                // Display what we have found and progress
+                sprintf(idAndNamBuffer, PRESET_ID_AND_NAME, listPresets.size(), newPreset.name);
+                display->displayLine(idAndNamBuffer, 2);
+
+                LOG_DEBUG("New preset #%d - %d-%d %s (%d%%)", listPresets.size(), newPreset.dabEnsemble,
+                          newPreset.serviceId, newPreset.name, progress);
+
+                delay(100);
+            }
+        }
+
+        display->displayProgress(100, 3);
+    }
+
+    // Resetting everything
+    dab->tune(currentFrequencyIndex);
+    dab->mute(false, false);
+    delay(500);
+    display->clearLine(1);
+    display->clearLine(2);
+    display->clearLine(3);
+    displayServiceInfo();
+    LOG_INFO("Refreshed list presets (found %d stations)... Saving.", listPresets.size());
+    savePresets();
+}
+
+
+bool DABRadio::ServiceInfo::operator==(const ServiceInfo &other) const {
+    if (this->frequencyIndex != other.frequencyIndex) return false;
+    if (this->serviceId != other.serviceId) return false;
+    if (this->compId != other.compId) return false;
+
+    if (this->year != other.year) return false;
+    if (this->month != other.month) return false;
+    if (this->day != other.day) return false;
+    if (this->hour != other.hour) return false;
+    if (this->minute != other.minute) return false;
+
+    if (this->bitRate != other.bitRate) return false;
+    if (this->sampleRate != other.sampleRate) return false;
+    if (this->dabPlus != other.dabPlus) return false;
+    if (this->signalStrength != other.signalStrength) return false;
+    if (this->snr != other.snr) return false;
+
+    if (strcmp(this->serviceName, other.serviceName) != 0) return false;
+    if (strcmp(this->serviceData, other.serviceData) != 0) return false;
+
+    return true;
+}
+
+void DABRadio::ServiceInfo::copyFrom(const ServiceInfo &other) {
+    this->frequencyIndex = other.frequencyIndex;
+    this->serviceId = other.serviceId;
+    this->compId = other.compId;
+
+    this->year = other.year;
+    this->month = other.month;
+    this->day = other.day;
+    this->hour = other.hour;
+    this->minute = other.minute;
+
+    this->bitRate = other.bitRate;
+    this->sampleRate = other.sampleRate;
+    this->dabPlus = other.dabPlus;
+    this->signalStrength = other.signalStrength;
+    this->snr = other.snr;
+
+    strcpy(this->serviceName, other.serviceName);
+    strcpy(this->serviceData, other.serviceData);
+}
+
+void DABRadio::ServiceInfo::clear() {
+    this->frequencyIndex = 0;
+    this->serviceId = 0;
+    this->compId = 0;
+
+
+    this->bitRate = 0;
+    this->sampleRate = 0;
+    this->dabPlus = false;
+    this->signalStrength = 0;
+    this->snr = 0;
+    strcpy(this->serviceName, "");
+    strcpy(this->serviceData, "");
+}
+

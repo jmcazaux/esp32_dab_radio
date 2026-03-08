@@ -50,8 +50,8 @@ Preferences preferences;
 // Sources
 constexpr int HIGH_CPU_CLOCK_MHZ = 240;
 constexpr int LOW_CPU_CLOCK_MHZ = 40;
-constexpr int nbSources = 3;
-AudioSource *sources[nbSources];
+constexpr int NB_SOURCES = 3;
+AudioSource *sources[NB_SOURCES];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
@@ -222,7 +222,7 @@ void setup() {
     dab.speaker(SPEAKER_DIFF);
 
     LOG_INFO("Initialized Audio sources: ");
-    for (u_int8_t i = 0; i < nbSources; i++) {
+    for (u_int8_t i = 0; i < NB_SOURCES; i++) {
         LOG_INFO(" -> #%d: %s", i, sources[i]->name);
     }
 
@@ -243,7 +243,7 @@ void setup() {
     delay(1500);
 
     // Restoring previous source
-    currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % nbSources; // Just to make sure
+    currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % NB_SOURCES; // Just to make sure
     display->clear();
     switchSource(-1, currentSourceIndex);
 
@@ -274,9 +274,9 @@ void loop() {
         selectorPosition = newSelectorPosition;
         if (lastSelectedSourceTime + SELECT_SOURCE_MIN_DELAY < millis()) {
             const int step = selectorEncoder.getDirection() == RotaryEncoder::Direction::CLOCKWISE ? 1 : -1;
-            selectedSourceIndex = (selectedSourceIndex + step) % nbSources; // Keep in [0..nbSources]
+            selectedSourceIndex = (selectedSourceIndex + step) % NB_SOURCES; // Keep in [0..nbSources]
             // When turning anti-clockwise, we want to go from the first to the last, then one before the last etc.
-            selectedSourceIndex = (selectedSourceIndex < 0 ? selectedSourceIndex + nbSources : selectedSourceIndex);
+            selectedSourceIndex = (selectedSourceIndex < 0 ? selectedSourceIndex + NB_SOURCES : selectedSourceIndex);
             lastSelectedSourceTime = millis();
 
             LOG_INFO("Selecting source #%d - %s", selectedSourceIndex, sources[selectedSourceIndex]->name);

@@ -7,6 +7,8 @@
 #include <SourceConstants.h>
 #include <vector>
 
+#include "ArduinoJson/Array/JsonArray.hpp"
+
 class FMRadio : public AudioSource {
 public:
     FMRadio(Display *display, DAB *dab) : AudioSource(SOURCE_FM_RADIO, true, false, true, display), dab(dab) {
@@ -110,6 +112,8 @@ private:
     void savePreferences();
 
     void loadPresets();
+
+    static void addPresetToJsonArray(ArduinoJson::JsonArray jsonListPresets, Preset preset);
 
     void savePresets();
 
