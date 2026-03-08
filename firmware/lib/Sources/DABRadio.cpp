@@ -21,6 +21,7 @@ constexpr char COMP_ID_JSON_KEY[] = "compId";
 
 constexpr int MEMORY_PRESETS_SIZE = 10;
 
+constexpr unsigned long CHANGE_PRESET_DELAY_MS = 1000; // At 10Mhz might be able to go lower at 40MHz
 constexpr long DAB_STATUS_REFRESH_DELAY = 5000; // 5 seconds
 
 enum class DABMode {
@@ -29,6 +30,11 @@ enum class DABMode {
 };
 
 static const char *MODE_NAMES[] = {MODE_LIST, MODE_MEMORY};
+
+bool DABRadio::presetComparator(const Preset &lhs, const Preset &rhs) {
+    return strcmp(lhs.name, rhs.name) < 0;
+}
+
 
 void DABRadio::activate() {
     LOG_DEBUG("Activating source \"%s\"...", name);
@@ -48,9 +54,9 @@ void DABRadio::activate() {
     const uint8_t previousMode = preferences.getInt(MODE_KEY, currentMode);
     currentMode = min(static_cast<int>(previousMode), static_cast<int>(std::size(MODE_NAMES)) - 1);
 
-    currentPresetIndex = min(
+    currentListIndex = min(
         static_cast<int>(listPresets.size() - 1),
-        max(0, preferences.getInt(LIST_PRESET_KEY, currentPresetIndex))
+        max(0, preferences.getInt(LIST_PRESET_KEY, currentListIndex))
     );
 
     currentMemoryIndex = min(
@@ -59,7 +65,7 @@ void DABRadio::activate() {
     );
 
     LOG_INFO("%s restoring mode %s (LIST=%d, MEM=%d)",
-             name, MODE_NAMES[currentMode], currentPresetIndex, currentMemoryIndex
+             name, MODE_NAMES[currentMode], currentListIndex, currentMemoryIndex
     );
     displayNameAndMode();
 
@@ -70,9 +76,11 @@ void DABRadio::activate() {
 
     Preset previousPreset;
     if (currentMode == static_cast<int>(DABMode::LIST)) {
-        previousPreset = listPresets[currentPresetIndex];
+        previousPreset = listPresets[currentListIndex];
+        targetPresetIndex = currentListIndex;
     } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
         previousPreset = memoryPresets[currentMemoryIndex];
+        targetPresetIndex = currentMemoryIndex;
     }
 
     tunePreset(previousPreset);
@@ -85,6 +93,31 @@ void DABRadio::activate() {
     LOG_INFO("Activated source \"%s\"", name);
 }
 
+uint8_t DABRadio::getCurrentModePresetIndex() const {
+    return (currentMode == static_cast<int>(DABMode::LIST) ? currentListIndex : currentMemoryIndex);
+}
+
+std::vector<DABRadio::Preset> DABRadio::getCurrentModePresets() {
+    return currentMode == static_cast<int>(DABMode::LIST) ? listPresets : memoryPresets;
+}
+
+void DABRadio::tick() {
+    auto currentIndex = getCurrentModePresetIndex();
+    if (currentIndex != targetPresetIndex && lastTargetPresetChange + CHANGE_PRESET_DELAY_MS < millis()) {
+        if (currentMode == static_cast<int>(DABMode::LIST)) {
+            currentListIndex = targetPresetIndex;
+        } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+            currentMemoryIndex = targetPresetIndex;
+        }
+
+        const auto targetPreset = getCurrentModePresets()[targetPresetIndex];
+        char buffer[32];
+        sprintf(buffer, "> %s...", targetPreset.name);
+        display->displayLine(buffer, 1);
+        tunePreset(targetPreset);
+    }
+}
+
 void DABRadio::tunePreset(Preset preset) {
     LOG_DEBUG("Tuning preset \"%s\"...", preset.name);
     dab->tune(preset.dabEnsemble);
@@ -94,59 +127,53 @@ void DABRadio::tunePreset(Preset preset) {
     LOG_INFO("Tuned preset \"%s\" (ensemble %d, service %d)", preset.name, preset.dabEnsemble, preset.serviceId);
 }
 
-void DABRadio::tuneList(TuneDirection direction) {
-    if (currentPresetIndex == 0 && direction == TUNE_DOWN) {
-        currentPresetIndex = listPresets.size() - 1;
+void DABRadio::changeTargetPreset(const TuneDirection direction) {
+    lastTargetPresetChange = millis();
+    const std::vector<Preset> presets = getCurrentModePresets();
+
+    if (targetPresetIndex == 0 && direction == TUNE_DOWN) {
+        targetPresetIndex = presets.size() - 1;
     } else {
-        currentPresetIndex = (currentPresetIndex + direction) % listPresets.size();
+        targetPresetIndex = (targetPresetIndex + direction) % presets.size();
     }
-    LOG_DEBUG("Tuning to list preset %d \"%s\"",
-              currentPresetIndex,
-              listPresets[currentPresetIndex].name);
 
-    tunePreset(listPresets[currentPresetIndex]);
-}
-
-void DABRadio::tuneMemory(TuneDirection direction) {
-    if (currentMemoryIndex == 0 && direction == TUNE_DOWN) {
-        currentMemoryIndex = memoryPresets.size() - 1;
-    } else {
-        currentMemoryIndex = (currentMemoryIndex + direction) % memoryPresets.size();
-    }
-    LOG_DEBUG("Tuning to list preset %d \"%s\"",
-              currentMemoryIndex,
-              memoryPresets[currentMemoryIndex].name);
-
-    tunePreset(memoryPresets[currentMemoryIndex]);
+    LOG_DEBUG("Targeting %s preset #%d-\"%s\"...",
+              currentMode == static_cast<int>(DABMode::LIST) ? "list" : "memory",
+              targetPresetIndex, presets[targetPresetIndex].name
+    );
+    displayServiceInfo();
 }
 
 void DABRadio::tuneUp() {
-    if (currentMode == static_cast<int>(DABMode::LIST)) {
-        tuneList(TUNE_UP);
-    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
-        tuneMemory(TUNE_UP);
-    }
+    changeTargetPreset(TUNE_UP);
 }
 
 void DABRadio::tuneDown() {
-    if (currentMode == static_cast<int>(DABMode::LIST)) {
-        tuneList(TUNE_DOWN);
-    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
-        tuneMemory(TUNE_DOWN);
-    }
+    changeTargetPreset(TUNE_DOWN);
 }
 
 void DABRadio::modeDoublePressed() {
+    auto previousPreset = getCurrentModePresetIndex();
+    dab->mute(true, true);
     refreshListPresets();
+    if (currentMode == static_cast<int>(DABMode::LIST) && previousPreset >= listPresets.size()) {
+        currentListIndex = listPresets.size() - 1;
+    }
+    tunePreset(getCurrentModePresets()[getCurrentModePresetIndex()]);
+    dab->mute(false, false);
 }
 
 void DABRadio::displayInformation() {
-    LOG_DEBUG("Getting service information...");
+    if (targetPresetIndex != getCurrentModePresetIndex()) {
+        LOG_DEBUG("Tuning mode skipping display of new information");
+        return;
+    }
+
     ServiceInfo newServiceInfo;
     newServiceInfo.copyFrom(serviceInfo);
 
     if (currentMode == static_cast<int>(DABMode::LIST)) {
-        strcpy(serviceInfo.serviceName, listPresets[currentPresetIndex].name);
+        strcpy(serviceInfo.serviceName, listPresets[currentListIndex].name);
     } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
         strcpy(serviceInfo.serviceName, memoryPresets[currentMemoryIndex].name);
     }
@@ -164,7 +191,6 @@ void DABRadio::displayInformation() {
 
     strcpy(serviceInfo.serviceData, dab->ServiceData);
     if (serviceInfo == newServiceInfo) {
-        LOG_DEBUG("Service information did not change... Keeping it.");
         return;
     }
 
@@ -189,14 +215,14 @@ void DABRadio::modeOrTuningChanged() {
 }
 
 
-void DABRadio::displayServiceInfo() {
+void DABRadio::displayStandardServiceInfo() {
     char nameBuffer[32];
     char serviceTypeBuffer[5];
     char metricsBuffer[20];
     if (currentMode == static_cast<int>(DABMode::LIST)) {
-        sprintf(nameBuffer, "#%02d %s", currentPresetIndex, serviceInfo.serviceName);
+        sprintf(nameBuffer, "#%02d %s", currentListIndex + 1, serviceInfo.serviceName);
     } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
-        sprintf(nameBuffer, "M%02d %s", currentMemoryIndex, serviceInfo.serviceName);
+        sprintf(nameBuffer, "M%02d %s", currentMemoryIndex + 1, serviceInfo.serviceName);
     }
     display->displayLine(nameBuffer, 1);
 
@@ -215,6 +241,28 @@ void DABRadio::displayServiceInfo() {
         sprintf(metricsBuffer, "Q:%d%%", serviceInfo.quality);
     }
     display->displayJustified(serviceTypeBuffer, metricsBuffer, 3);
+}
+
+void DABRadio::displayServiceInfo() {
+    auto now = millis();
+    LOG_DEBUG("Displaying service info...");
+    if (targetPresetIndex != getCurrentModePresetIndex()) {
+        const auto presets = getCurrentModePresets();
+        auto targetPreset = presets[targetPresetIndex];
+
+        char buffer[32];
+        sprintf(buffer, ">>> %s", targetPreset.name);
+        display->displayLine(buffer, 1);
+
+        if (strlen(serviceInfo.serviceData) > 0 || serviceInfo.quality > 0) {
+            serviceInfo.clear();
+            display->clearLine(2);
+            display->clearLine(3);
+        }
+    } else {
+        displayStandardServiceInfo();
+    }
+    LOG_DEBUG("Displayed service info (%d ms)", millis() - now);
 }
 
 DABRadio::Preset DABRadio::getPresetFromJson(JsonObject preset) {
@@ -338,11 +386,11 @@ void DABRadio::savePreferences() {
     LOG_DEBUG("Saving preferences...");
     preferences.putInt(MODE_KEY, currentMode);
     if (currentMode == static_cast<int>(DABMode::LIST)) {
-        preferences.putInt(LIST_PRESET_KEY, currentPresetIndex);
+        preferences.putInt(LIST_PRESET_KEY, currentListIndex);
     } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
         preferences.putInt(MEMORY_PRESET_KEY, currentMemoryIndex);
     }
-    LOG_INFO("Saved preferences (mode %s, LIST=%d, MEM=%d)", MODE_NAMES[currentMode], currentPresetIndex,
+    LOG_INFO("Saved preferences (mode %s, LIST=%d, MEM=%d)", MODE_NAMES[currentMode], currentListIndex,
              currentMemoryIndex);
 }
 
@@ -402,9 +450,11 @@ void DABRadio::refreshListPresets() {
                 delay(100);
             }
         }
-
-        display->displayProgress(100, 3);
     }
+
+    sort(listPresets.begin(), listPresets.end(), presetComparator);
+
+    display->displayProgress(100, 3);
 
     // Resetting everything
     dab->tune(currentFrequencyIndex);
@@ -415,6 +465,9 @@ void DABRadio::refreshListPresets() {
     display->clearLine(3);
     displayServiceInfo();
     LOG_INFO("Refreshed list presets (found %d stations)... Saving.", listPresets.size());
+    for (auto preset: listPresets) {
+        LOG_DEBUG("  > %s", preset.name);
+    }
     savePresets();
 }
 

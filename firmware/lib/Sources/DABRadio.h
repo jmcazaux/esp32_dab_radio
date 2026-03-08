@@ -16,6 +16,10 @@ public:
 
     void activate() override;
 
+    uint8_t getCurrentModePresetIndex() const;
+
+    void tick() override;
+
     void tuneUp() override;
 
     void tuneDown() override;
@@ -62,6 +66,8 @@ private:
         char name[32] = "";
     };
 
+    static bool presetComparator(const Preset &lhs, const Preset &rhs);
+
     DAB *dab;
     Preferences preferences;
     ServiceInfo serviceInfo{};
@@ -70,28 +76,30 @@ private:
 
     // The tune button goes up / down but not stable yet
     unsigned long lastTargetPresetChange = 0;
-    uint16_t targetPreset = 0;
+    uint16_t targetPresetIndex = 0;
 
 
     std::vector<Preset> listPresets;
     std::vector<Preset> memoryPresets;
     uint8_t currentMode = 0;
-    uint8_t currentPresetIndex = 0;
+    uint8_t currentListIndex = 0;
     uint8_t currentMemoryIndex = 0;
 
     void refreshListPresets();
 
     void tunePreset(Preset preset);
 
-    void tuneList(TuneDirection direction);
+    std::vector<DABRadio::Preset> getCurrentModePresets();
 
-    void tuneMemory(TuneDirection direction);
+    void changeTargetPreset(TuneDirection direction);
 
     void displayNameAndMode() const;
 
     void displayServiceInfo();
 
     void modeOrTuningChanged();
+
+    void displayStandardServiceInfo();
 
     static Preset getPresetFromJson(ArduinoJson::JsonObject preset);
 
