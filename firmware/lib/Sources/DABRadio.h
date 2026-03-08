@@ -68,6 +68,11 @@ private:
 
     unsigned long lastDabStatusRefresh = 0;
 
+    // The tune button goes up / down but not stable yet
+    unsigned long lastTargetPresetChange = 0;
+    uint16_t targetPreset = 0;
+
+
     std::vector<Preset> listPresets;
     std::vector<Preset> memoryPresets;
     uint8_t currentMode = 0;

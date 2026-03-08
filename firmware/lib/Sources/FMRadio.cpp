@@ -43,14 +43,16 @@ void FMRadio::displayNameAndMode() const {
 }
 
 void FMRadio::activate() {
-    LOG_DEBUG("Activating FM source \"%s\"...", name);
+    LOG_DEBUG("Activating source \"%s\"...", name);
     if (this->isActive()) {
         // Only refresh the display
         displayNameAndMode();
         return;
     }
-    LOG_INFO("Restoring presets...");
-    loadPresets();
+    if (listPresets.empty() && memoryPresets.empty()) {
+        LOG_INFO("Restoring presets...");
+        loadPresets();
+    }
 
     // Restoring previous mode & frequency
     preferences.begin(PREFERENCE_NAMESPACE, false);
@@ -173,15 +175,17 @@ void FMRadio::tunePreset(const Preset &preset) {
 
 
 void FMRadio::tuneFrequency(const TuneDirection direction) {
-    const uint16_t frequencyStep =
+    const int frequencyStep =
             direction * (millis() - lastTargetFrequencyChange < LARGER_FREQUENCY_STEP_DELAY_MS
                              ? LARGE_FREQUENCY_STEP_CHANGE
                              : MIN_FREQUENCY_STEP_CHANGE);
 
-    LOG_DEBUG("Tuning up by %.1fMHz (delay %dms)",
-              frequencyStep / 100.0,
+    LOG_DEBUG("Tuning %s by %.1fMHz (delay %dms)",
+              direction == TUNE_UP ? "UP" : "DOWN",
+              (frequencyStep / 100.0),
               millis() - lastTargetFrequencyChange);
     offsetTargetFrequency(frequencyStep);
+
     lastTargetFrequencyChange = millis();
 }
 

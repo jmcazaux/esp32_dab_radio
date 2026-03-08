@@ -21,7 +21,7 @@ constexpr char COMP_ID_JSON_KEY[] = "compId";
 
 constexpr int MEMORY_PRESETS_SIZE = 10;
 
-constexpr long DAB_STATUS_REFRESH_DELAY = 15000;
+constexpr long DAB_STATUS_REFRESH_DELAY = 5000; // 5 seconds
 
 enum class DABMode {
     LIST,
@@ -31,14 +31,17 @@ enum class DABMode {
 static const char *MODE_NAMES[] = {MODE_LIST, MODE_MEMORY};
 
 void DABRadio::activate() {
-    LOG_DEBUG("Activating FM source \"%s\"...", name);
+    LOG_DEBUG("Activating source \"%s\"...", name);
     if (this->isActive()) {
         // Only refresh the display
         displayNameAndMode();
         return;
     }
-    LOG_INFO("Restoring presets...");
-    loadPresets();
+
+    if (listPresets.empty() && memoryPresets.empty()) {
+        LOG_INFO("Restoring presets...");
+        loadPresets();
+    }
 
     // Restoring previous mode & frequency
     preferences.begin(PREFERENCE_NAMESPACE, false);
@@ -79,7 +82,7 @@ void DABRadio::activate() {
     dab->mute(false, false);
 
     active = true;
-    LOG_INFO("Activated FM source \"%s\"", name);
+    LOG_INFO("Activated source \"%s\"", name);
 }
 
 void DABRadio::tunePreset(Preset preset) {
@@ -87,7 +90,6 @@ void DABRadio::tunePreset(Preset preset) {
     dab->tune(preset.dabEnsemble);
     dab->set_service(preset.serviceId);
     serviceInfo.clear();
-    strcpy(serviceInfo.serviceName, preset.name);
     modeOrTuningChanged();
     LOG_INFO("Tuned preset \"%s\" (ensemble %d, service %d)", preset.name, preset.dabEnsemble, preset.serviceId);
 }
@@ -142,6 +144,13 @@ void DABRadio::displayInformation() {
     LOG_DEBUG("Getting service information...");
     ServiceInfo newServiceInfo;
     newServiceInfo.copyFrom(serviceInfo);
+
+    if (currentMode == static_cast<int>(DABMode::LIST)) {
+        strcpy(serviceInfo.serviceName, listPresets[currentPresetIndex].name);
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        strcpy(serviceInfo.serviceName, memoryPresets[currentMemoryIndex].name);
+    }
+
     if ((lastDabStatusRefresh + DAB_STATUS_REFRESH_DELAY) < millis()) {
         serviceInfo.bitRate = dab->bitrate;
         serviceInfo.sampleRate = dab->samplerate;
@@ -159,14 +168,12 @@ void DABRadio::displayInformation() {
         return;
     }
 
-    LOG_INFO(
-        "Got new service information for \"%s\":\n > Data: %s\n > Bitrate: %dkHz\n > Sample rate: %dkHz\n > Quality: %d%%\n > DAB+: %d",
-        serviceInfo.serviceName,
-        serviceInfo.serviceData,
-        serviceInfo.bitRate,
-        serviceInfo.sampleRate,
-        serviceInfo.quality,
-        serviceInfo.dabPlus);
+    LOG_INFO("Got new service information for \"%s\"", serviceInfo.serviceName);
+    LOG_DEBUG(" > Data:        %s", serviceInfo.serviceData);
+    LOG_DEBUG(" > Bitrate:     %dkHz", serviceInfo.bitRate);
+    LOG_DEBUG(" > Sample rate: %dkHz", serviceInfo.sampleRate);
+    LOG_DEBUG(" > Quality:     %d%%", serviceInfo.quality);
+    LOG_DEBUG(" > DAB+:        %s", serviceInfo.dabPlus ? "true" : "false");
 
     displayServiceInfo();
 }
@@ -183,13 +190,15 @@ void DABRadio::modeOrTuningChanged() {
 
 
 void DABRadio::displayServiceInfo() {
-    char buffer[32];
+    char nameBuffer[32];
+    char serviceTypeBuffer[5];
+    char metricsBuffer[20];
     if (currentMode == static_cast<int>(DABMode::LIST)) {
-        sprintf(buffer, "#%d %s", currentPresetIndex, listPresets[currentPresetIndex].name);
-    } else {
-        sprintf(buffer, "M%02d %s", currentMemoryIndex, listPresets[currentPresetIndex].name);
+        sprintf(nameBuffer, "#%02d %s", currentPresetIndex, serviceInfo.serviceName);
+    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
+        sprintf(nameBuffer, "M%02d %s", currentMemoryIndex, serviceInfo.serviceName);
     }
-    display->displayLine(buffer, 1);
+    display->displayLine(nameBuffer, 1);
 
     if (strlen(serviceInfo.serviceData) > 0) {
         display->displayLine(serviceInfo.serviceData, 2, ROLLING_LEFT);
@@ -197,8 +206,15 @@ void DABRadio::displayServiceInfo() {
         display->clearLine(2);
     }
 
-    sprintf(buffer, "%s %dKHz %d%%", serviceInfo.dabPlus ? "DAB+" : "DAB", serviceInfo.bitRate, serviceInfo.quality);
-    display->displayLine(buffer, 3, CENTER);
+
+    sprintf(serviceTypeBuffer, "%s", serviceInfo.dabPlus ? "DAB+" : "DAB");
+
+    if (serviceInfo.bitRate > 0) {
+        sprintf(metricsBuffer, "%dKHz Q:%d%%", serviceInfo.bitRate, serviceInfo.quality);
+    } else {
+        sprintf(metricsBuffer, "Q:%d%%", serviceInfo.quality);
+    }
+    display->displayJustified(serviceTypeBuffer, metricsBuffer, 3);
 }
 
 DABRadio::Preset DABRadio::getPresetFromJson(JsonObject preset) {

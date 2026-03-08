@@ -49,7 +49,7 @@ Preferences preferences;
 
 // Sources
 constexpr int HIGH_CPU_CLOCK_MHZ = 240;
-constexpr int LOW_CPU_CLOCK_MHZ = 40;
+constexpr int LOW_CPU_CLOCK_MHZ = 10;
 constexpr int NB_SOURCES = 3;
 AudioSource *sources[NB_SOURCES];
 
