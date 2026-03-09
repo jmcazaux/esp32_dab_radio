@@ -22,6 +22,8 @@ public:
 
     void tuneDown() override;
 
+    void modePressed();
+
     void tuneLongPressed() override;
 
     void tuneReleased() override;

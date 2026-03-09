@@ -119,19 +119,23 @@ void DABRadio::tick() {
         }
 
         const auto targetPreset = getCurrentModePresets()[targetPresetIndex];
-        char buffer[32];
-        sprintf(buffer, "> %s...", targetPreset.name);
-        display->displayLine(buffer, 1);
         tunePreset(targetPreset);
     }
 }
 
 void DABRadio::tunePreset(Preset preset) {
     LOG_DEBUG("Tuning preset \"%s\"...", preset.name);
+    char buffer[32];
+    sprintf(buffer, ">>> %s...", preset.name);
+    display->displayLine(buffer, 1);
+
     dab->tune(preset.dabEnsemble);
     dab->set_service(preset.serviceId);
     serviceInfo.clear();
+
+    targetPresetIndex = currentMode == static_cast<int>(DABMode::LIST) ? currentListIndex : currentMemoryIndex;
     modeOrTuningChanged();
+
     LOG_INFO("Tuned preset \"%s\" (ensemble %d, service %d)", preset.name, preset.dabEnsemble, preset.serviceId);
 }
 
@@ -220,15 +224,19 @@ void DABRadio::tuneDown() {
     }
 }
 
+void DABRadio::modePressed() {
+    currentMode = (currentMode + 1) % std::size(MODE_NAMES);
+    displayNameAndMode();
+    tunePreset(getCurrentPreset());
+}
+
 void DABRadio::modeDoublePressed() {
     const auto previousPreset = getCurrentModePresetIndex();
-    dab->mute(true, true);
     refreshListPresets();
     if (currentMode == static_cast<int>(DABMode::LIST) && previousPreset >= listPresets.size()) {
         currentListIndex = listPresets.size() - 1;
     }
     tunePreset(getCurrentPreset());
-    dab->mute(false, false);
 }
 
 void DABRadio::displayInformation() {
@@ -239,29 +247,26 @@ void DABRadio::displayInformation() {
 
     ServiceInfo newServiceInfo;
     newServiceInfo.copyFrom(serviceInfo);
-
-    if (currentMode == static_cast<int>(DABMode::LIST)) {
-        strcpy(serviceInfo.serviceName, listPresets[currentListIndex].name);
-    } else if (currentMode == static_cast<int>(DABMode::MEMORY)) {
-        strcpy(serviceInfo.serviceName, memoryPresets[currentMemoryIndex].name);
-    }
+    strncpy(newServiceInfo.serviceName, getCurrentPreset().name, 32);;
 
     if ((lastDabStatusRefresh + DAB_STATUS_REFRESH_DELAY) < millis()) {
-        serviceInfo.bitRate = dab->bitrate;
-        serviceInfo.sampleRate = dab->samplerate;
-        serviceInfo.dabPlus = dab->dabplus;
-        serviceInfo.signalStrength = dab->signalstrength;
-        serviceInfo.snr = dab->snr;
-        serviceInfo.quality = dab->quality;
         dab->status();
+        newServiceInfo.bitRate = dab->bitrate;
+        newServiceInfo.sampleRate = dab->samplerate;
+        newServiceInfo.dabPlus = dab->dabplus;
+        newServiceInfo.signalStrength = dab->signalstrength;
+        newServiceInfo.snr = dab->snr;
+        newServiceInfo.quality = dab->quality;
         lastDabStatusRefresh = millis();
     }
 
-    strcpy(serviceInfo.serviceData, dab->ServiceData);
+    strcpy(newServiceInfo.serviceData, dab->ServiceData);
     if (serviceInfo == newServiceInfo) {
+        LOG_DEBUG("Skipping display of new information");
         return;
     }
 
+    serviceInfo.copyFrom(newServiceInfo);
     LOG_INFO("Got new service information for \"%s\"", serviceInfo.serviceName);
     LOG_DEBUG(" > Data:        %s", serviceInfo.serviceData);
     LOG_DEBUG(" > Bitrate:     %dkHz", serviceInfo.bitRate);
@@ -277,13 +282,13 @@ void DABRadio::modeOrTuningChanged() {
         LOG_INFO("Preset list is empty... Triggering refresh.");
         refreshListPresets();
     }
-
+    serviceInfo.clear();
     this->displayInformation();
     this->savePreferences();
 }
 
 /**
- * Display the service information is "standard" conditions (not tuning and not memorizing)
+ * Display the service information in "standard" conditions (not tuning and not memorizing)
  */
 void DABRadio::displayStandardServiceInfo() {
     char nameBuffer[32];
@@ -320,7 +325,7 @@ void DABRadio::displayTuningServiceInfo() {
     auto targetPreset = presets[targetPresetIndex];
 
     char buffer[32];
-    sprintf(buffer, ">>> %s", targetPreset.name);
+    sprintf(buffer, ">%02d %s", targetPresetIndex + 1, targetPreset.name);
     display->displayLine(buffer, 1);
 
     if (strlen(serviceInfo.serviceData) > 0 || serviceInfo.quality > 0) {
@@ -601,6 +606,7 @@ void DABRadio::ServiceInfo::copyFrom(const ServiceInfo &other) {
 
     this->bitRate = other.bitRate;
     this->sampleRate = other.sampleRate;
+    this->quality = other.quality;
     this->dabPlus = other.dabPlus;
     this->signalStrength = other.signalStrength;
     this->snr = other.snr;
