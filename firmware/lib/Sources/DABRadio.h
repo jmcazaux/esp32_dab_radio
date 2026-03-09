@@ -16,13 +16,15 @@ public:
 
     void activate() override;
 
-    uint8_t getCurrentModePresetIndex() const;
-
     void tick() override;
 
     void tuneUp() override;
 
     void tuneDown() override;
+
+    void tuneLongPressed() override;
+
+    void tuneReleased() override;
 
     void modeDoublePressed() override;
 
@@ -78,20 +80,27 @@ private:
     unsigned long lastTargetPresetChange = 0;
     uint16_t targetPresetIndex = 0;
 
-
+    bool memorizingPreset = false;
+    uint8_t targetMemoryPreset = 0; // Memory preset where
     std::vector<Preset> listPresets;
     std::vector<Preset> memoryPresets;
     uint8_t currentMode = 0;
     uint8_t currentListIndex = 0;
     uint8_t currentMemoryIndex = 0;
 
+    [[nodiscard]] uint8_t getCurrentModePresetIndex() const;
+
+    std::vector<Preset> getCurrentModePresets();
+
     void refreshListPresets();
 
     void tunePreset(Preset preset);
 
-    std::vector<DABRadio::Preset> getCurrentModePresets();
+    bool isTuning() const;
 
     void changeTargetPreset(TuneDirection direction);
+
+    void selectTargetMemoryPreset(TuneDirection direction);
 
     void displayNameAndMode() const;
 
@@ -100,6 +109,12 @@ private:
     void modeOrTuningChanged();
 
     void displayStandardServiceInfo();
+
+    void displayTuningServiceInfo();
+
+    void displayMemorizingServiceInfo();
+
+    __gnu_cxx::__alloc_traits<std::allocator<DABRadio::Preset> >::value_type getCurrentPreset();
 
     static Preset getPresetFromJson(ArduinoJson::JsonObject preset);
 

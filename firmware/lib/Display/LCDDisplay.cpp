@@ -29,6 +29,12 @@ LCDDisplay::LCDDisplay(uint8_t lcdAddr, uint8_t lcdColumns, uint8_t lcdRows) {
         lines[i] = new char[nbColumns + 1];
     }
 
+    blankLine = new char[nbColumns + 1];
+    for (uint8_t i = 0; i < nbColumns; i++) {
+        blankLine[i] = ' ';
+    }
+    blankLine[nbColumns] = '\0';
+
     displaySources = new DisplaySource[lcdRows];
     LOG_DEBUG("Initializing LCDDisplay...");
     lcd->init();
@@ -58,15 +64,15 @@ void LCDDisplay::clear() {
     lcd->clear();
 }
 
-void LCDDisplay::clearLine(u_int8_t line) {
+void LCDDisplay::clearLine(const u_int8_t line) {
     if (line >= nbLines) {
         LOG_WARNING("Cannot clear line %d (only %d lines)... Ignoring.", line, nbLines);
         return;
     }
 
-    this->padOrTrim(" ", lines[line], nbColumns, LEFT);
+    lines[line][0] = '\0';
     lcd->setCursor(0, line);
-    lcd->print(lines[line]);
+    lcd->print(blankLine);
     displaySources[line].setSource("", LEFT);
 }
 

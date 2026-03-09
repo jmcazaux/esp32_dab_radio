@@ -101,6 +101,14 @@ std::vector<DABRadio::Preset> DABRadio::getCurrentModePresets() {
     return currentMode == static_cast<int>(DABMode::LIST) ? listPresets : memoryPresets;
 }
 
+DABRadio::Preset DABRadio::getCurrentPreset() {
+    return getCurrentModePresets()[getCurrentModePresetIndex()];
+}
+
+bool DABRadio::isTuning() const {
+    return getCurrentModePresetIndex() != targetPresetIndex;
+}
+
 void DABRadio::tick() {
     auto currentIndex = getCurrentModePresetIndex();
     if (currentIndex != targetPresetIndex && lastTargetPresetChange + CHANGE_PRESET_DELAY_MS < millis()) {
@@ -127,6 +135,43 @@ void DABRadio::tunePreset(Preset preset) {
     LOG_INFO("Tuned preset \"%s\" (ensemble %d, service %d)", preset.name, preset.dabEnsemble, preset.serviceId);
 }
 
+
+void DABRadio::tuneLongPressed() {
+    if (isTuning()) {
+        // If we are tuning, we do not want to enter memorizing mode
+        LOG_DEBUG("Tuning preset... Cannot enter memorizing mode.");
+        return;
+    }
+    LOG_INFO("Entering memorizing mode...");
+    memorizingPreset = true;
+    displayServiceInfo();
+}
+
+void DABRadio::tuneReleased() {
+    if (!memorizingPreset) {
+        return;
+    }
+
+    memorizingPreset = false;
+
+    auto currentPreset = getCurrentPreset();
+    LOG_INFO("Saving preset \"%s\" to memory #%d", currentPreset.name, targetMemoryPreset);
+    strcpy(memoryPresets[targetMemoryPreset].name, currentPreset.name);
+    memoryPresets[targetMemoryPreset].dabEnsemble = currentPreset.dabEnsemble;
+    memoryPresets[targetMemoryPreset].serviceId = currentPreset.serviceId;
+    memoryPresets[targetMemoryPreset].compId = currentPreset.compId;
+
+    targetMemoryPreset = 0;
+    displayServiceInfo();
+    savePresets();
+}
+
+/**
+ * Changes the target preset while tuning through memory or list presets.
+ * The preset is first targeted (the frequency does not change as it takes time) and when stable (no change in xxx ms)
+ * the target preset is actually tuned in.
+ * @param direction 'TUNE_UP' or 'TUNE_DOWN' (self-explanatory).
+ */
 void DABRadio::changeTargetPreset(const TuneDirection direction) {
     lastTargetPresetChange = millis();
     const std::vector<Preset> presets = getCurrentModePresets();
@@ -144,22 +189,45 @@ void DABRadio::changeTargetPreset(const TuneDirection direction) {
     displayServiceInfo();
 }
 
+/**
+ * Changes the memory preset the current service will be writen to.
+ * @param direction 'TUNE_UP' or 'TUNE_DOWN' (self-explanatory).
+ */
+void DABRadio::selectTargetMemoryPreset(const TuneDirection direction) {
+    if (targetMemoryPreset == 0 && direction == TUNE_DOWN) {
+        targetMemoryPreset = memoryPresets.size() - 1;
+    } else {
+        targetMemoryPreset = (targetMemoryPreset + direction) % memoryPresets.size();
+    }
+    LOG_DEBUG("Selected target memory preset %d", targetMemoryPreset);
+    displayServiceInfo();
+}
+
+
 void DABRadio::tuneUp() {
-    changeTargetPreset(TUNE_UP);
+    if (memorizingPreset) {
+        selectTargetMemoryPreset(TUNE_UP);
+    } else {
+        changeTargetPreset(TUNE_UP);
+    }
 }
 
 void DABRadio::tuneDown() {
-    changeTargetPreset(TUNE_DOWN);
+    if (memorizingPreset) {
+        selectTargetMemoryPreset(TUNE_DOWN);
+    } else {
+        changeTargetPreset(TUNE_DOWN);
+    }
 }
 
 void DABRadio::modeDoublePressed() {
-    auto previousPreset = getCurrentModePresetIndex();
+    const auto previousPreset = getCurrentModePresetIndex();
     dab->mute(true, true);
     refreshListPresets();
     if (currentMode == static_cast<int>(DABMode::LIST) && previousPreset >= listPresets.size()) {
         currentListIndex = listPresets.size() - 1;
     }
-    tunePreset(getCurrentModePresets()[getCurrentModePresetIndex()]);
+    tunePreset(getCurrentPreset());
     dab->mute(false, false);
 }
 
@@ -214,7 +282,9 @@ void DABRadio::modeOrTuningChanged() {
     this->savePreferences();
 }
 
-
+/**
+ * Display the service information is "standard" conditions (not tuning and not memorizing)
+ */
 void DABRadio::displayStandardServiceInfo() {
     char nameBuffer[32];
     char serviceTypeBuffer[5];
@@ -232,7 +302,6 @@ void DABRadio::displayStandardServiceInfo() {
         display->clearLine(2);
     }
 
-
     sprintf(serviceTypeBuffer, "%s", serviceInfo.dabPlus ? "DAB+" : "DAB");
 
     if (serviceInfo.bitRate > 0) {
@@ -243,22 +312,46 @@ void DABRadio::displayStandardServiceInfo() {
     display->displayJustified(serviceTypeBuffer, metricsBuffer, 3);
 }
 
+/**
+ * Display service information while tuning to a preset.
+ */
+void DABRadio::displayTuningServiceInfo() {
+    const auto presets = getCurrentModePresets();
+    auto targetPreset = presets[targetPresetIndex];
+
+    char buffer[32];
+    sprintf(buffer, ">>> %s", targetPreset.name);
+    display->displayLine(buffer, 1);
+
+    if (strlen(serviceInfo.serviceData) > 0 || serviceInfo.quality > 0) {
+        serviceInfo.clear();
+        display->clearLine(2);
+        display->clearLine(3);
+    }
+}
+
+void DABRadio::displayMemorizingServiceInfo() {
+    char buffer[32];
+    auto currentlyMemorizedPreset = memoryPresets[targetMemoryPreset];
+
+    auto currentPreset = getCurrentPreset();
+
+    sprintf(buffer, MEMORIZING_NAME, currentPreset.name);
+    display->displayLine(buffer, 1);
+
+    sprintf(buffer, MEMORY_PRESET_ID_AND_NAME, targetMemoryPreset + 1, currentlyMemorizedPreset.name);
+    display->displayLine(buffer, 2);
+
+    display->displayLine(RELEASE_TO_STORE, 3, CENTER);
+}
+
 void DABRadio::displayServiceInfo() {
     auto now = millis();
     LOG_DEBUG("Displaying service info...");
-    if (targetPresetIndex != getCurrentModePresetIndex()) {
-        const auto presets = getCurrentModePresets();
-        auto targetPreset = presets[targetPresetIndex];
-
-        char buffer[32];
-        sprintf(buffer, ">>> %s", targetPreset.name);
-        display->displayLine(buffer, 1);
-
-        if (strlen(serviceInfo.serviceData) > 0 || serviceInfo.quality > 0) {
-            serviceInfo.clear();
-            display->clearLine(2);
-            display->clearLine(3);
-        }
+    if (memorizingPreset) {
+        displayMemorizingServiceInfo();
+    } else if (targetPresetIndex != getCurrentModePresetIndex()) {
+        displayTuningServiceInfo();
     } else {
         displayStandardServiceInfo();
     }
@@ -466,7 +559,7 @@ void DABRadio::refreshListPresets() {
     displayServiceInfo();
     LOG_INFO("Refreshed list presets (found %d stations)... Saving.", listPresets.size());
     for (auto preset: listPresets) {
-        LOG_DEBUG("  > %s", preset.name);
+        LOG_DEBUG("  > %s @ %d - %d", preset.name, preset.dabEnsemble, preset.serviceId);
     }
     savePresets();
 }

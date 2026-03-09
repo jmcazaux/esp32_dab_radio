@@ -5,48 +5,55 @@
 #include "Display.h"
 
 class LCDDisplay : public Display {
-   public:
-    LCDDisplay(uint8_t lcd_Addr, uint8_t lcd_cols, uint8_t lcd_rows);
+public:
+ LCDDisplay(uint8_t lcd_Addr, uint8_t lcd_cols, uint8_t lcd_rows);
 
-    void clear() override;
-    void clearLine(u_int8_t line) override;
-    void switchOn() override;
-    void switchOff() override;
-    void tick(unsigned long millis) override;
+ void clear() override;
 
-    void displayLine(const char text[], uint8_t line, DisplayAlignment align) override;
+ void clearLine(u_int8_t line) override;
 
-    void displayJustified(const char leftText[], const char rightText[], uint8_t line) override;
+ void switchOn() override;
 
-    void displayProgress(uint8_t progress, uint8_t line) override;
+ void switchOff() override;
 
-   private:
-    LiquidCrystal_I2C* lcd = nullptr;
-    u_int8_t nbColumns;
-    u_int8_t nbLines;
+ void tick(unsigned long millis) override;
 
-    unsigned long lastCycleTime = 0;
+ void displayLine(const char text[], uint8_t line, DisplayAlignment align) override;
 
-    char** lines;
+ void displayJustified(const char leftText[], const char rightText[], uint8_t line) override;
 
-    // Keep a copy of what is currently displayed (rolling index, etc)
-    class DisplaySource {
-       public:
-        DisplayAlignment alignment;
-        uint8_t rollingIndex;
+ void displayProgress(uint8_t progress, uint8_t line) override;
 
-        DisplaySource() : alignment{LEFT},
-                          rollingIndex{0},
-                          _source{nullptr} {
-        }
+private:
+ LiquidCrystal_I2C *lcd = nullptr;
+ u_int8_t nbColumns;
+ u_int8_t nbLines;
 
-        void setSource(const char* source, DisplayAlignment align);
-        void setSource(const char* source);
-        char* source() const;
+ unsigned long lastCycleTime = 0;
 
-       private:
-        char* _source;
-    };
+ char **lines;
+ char *blankLine;
 
-    DisplaySource* displaySources;
+ // Keep a copy of what is currently displayed (rolling index, etc)
+ class DisplaySource {
+ public:
+  DisplayAlignment alignment;
+  uint8_t rollingIndex;
+
+  DisplaySource() : alignment{LEFT},
+                    rollingIndex{0},
+                    _source{nullptr} {
+  }
+
+  void setSource(const char *source, DisplayAlignment align);
+
+  void setSource(const char *source);
+
+  char *source() const;
+
+ private:
+  char *_source;
+ };
+
+ DisplaySource *displaySources;
 };
