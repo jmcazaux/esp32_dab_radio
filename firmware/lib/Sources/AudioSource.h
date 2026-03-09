@@ -73,7 +73,7 @@ public:
     // Refresh information about the current audio stream and refresh the display
     // TODO: There should be no actual need to call this externally, but the callback function
     //       for the DAB service data has to be static and therefore can only be declared in `main.cpp`.
-    virtual void refreshInformation() {
+    virtual void displayInformation() {
     };
 
 protected:
