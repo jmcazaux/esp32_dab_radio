@@ -8,13 +8,14 @@
 #include <FMRadio.h>
 #include <LCDDisplay.h>
 #include <LittleFS.h>
+#include <MainStrings.h>
 #include <OneButton.h>
 #include <Preferences.h>
 #include <RotaryEncoder.h>
 #include <SPI.h>
-#include <MainStrings.h>
 
-#include <string>
+
+namespace dabradio = com::ironbird::esp32dabradio;
 
 // Enable power management
 #define CONFIG_PM_ENABLE 1
@@ -51,7 +52,7 @@ Preferences preferences;
 constexpr int HIGH_CPU_CLOCK_MHZ = 240;
 constexpr int LOW_CPU_CLOCK_MHZ = 40;
 constexpr int NB_SOURCES = 3;
-AudioSource *sources[NB_SOURCES];
+dabradio::AudioSource *sources[NB_SOURCES];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
@@ -59,9 +60,10 @@ unsigned long lastSelectedSourceTime = 0;
 
 // Devices
 DAB dab;
-Display *display;
+dabradio::Display *display;
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
+
 OneButton selectorButton(SELECTOR_ENCODER_SW, true, true);
 OneButton tuneButton(TUNE_ENCODER_SW, true, true);
 constexpr uint BUTTON_DOUBLECLICK_DELAY_MS = 300;
@@ -86,9 +88,15 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
     SPI.endTransaction();
 }
 
+void enableBluetooth() {
+}
+
+void disableBluetooth() {
+}
+
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
-    display->displayLine(SWITCHING_RADIO_ON, 2, CENTER);
+    display->displayLine(SWITCHING_RADIO_ON, 2, dabradio::CENTER);
     dab.setCallback(serviceData);
     dab.mute(true, true); // Avoid "tuning" noises
     dab.begin(1); // Actual mode set by the AudioSource
@@ -105,8 +113,8 @@ void disableRadio() {
 }
 
 void switchSource(const int fromSourceIdx, const int toSourceIdx) {
-    AudioSource *toSource = sources[toSourceIdx];
-    AudioSource *fromSource = nullptr;
+    dabradio::AudioSource *toSource = sources[toSourceIdx];
+    dabradio::AudioSource *fromSource = nullptr;
     if (fromSourceIdx >= 0) {
         fromSource = sources[fromSourceIdx];
     }
@@ -135,7 +143,15 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
         }
     }
 
-    // TODO:Bluetooth
+    // Toggle Bluetooth:
+    if (fromSource == nullptr || toSource->needsBluetooth != fromSource->needsBluetooth) {
+        if (toSource->needsBluetooth) {
+            enableBluetooth();
+        } else {
+            disableBluetooth();
+        }
+    }
+
 
     display->clear();
     toSource->activate();
@@ -205,16 +221,17 @@ void setup() {
     sprintf(versionString, "* Version %s *", STR(VERSION));
 
     LOG_DEBUG("Initializing display...");
-    display = new LCDDisplay(0x27, 20, 4);
+    display = new dabradio::LCDDisplay(0x27, 20, 4);
     display->switchOn();
-    display->displayLine("Philips BF501 Redux", 0, LEFT);
-    display->displayLine("Starting systems...", 1, LEFT);
-    display->displayLine(versionString, 2, CENTER);
+    display->displayLine("Philips BF501 Redux", 0, dabradio::LEFT);
+    display->displayLine("Starting systems...", 1, dabradio::LEFT);
+    display->displayLine(versionString, 2, dabradio::CENTER);
 
     LOG_DEBUG("Initializing audio sources...");
-    sources[0] = new FMRadio(display, &dab);
-    sources[1] = new DABRadio(display, &dab);
-    sources[2] = new Bluetooth(display);
+
+    sources[0] = new dabradio::FMRadio(display, &dab);
+    sources[1] = new dabradio::DABRadio(display, &dab);
+    sources[2] = new dabradio::Bluetooth(display);
 
     pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
