@@ -13,6 +13,8 @@
 #include <Preferences.h>
 #include <RotaryEncoder.h>
 #include <SPI.h>
+#include <AudioTools.h>
+#include <BluetoothA2DPSink.h>
 
 
 namespace dabradio = com::ironbird::esp32dabradio;
@@ -30,6 +32,10 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
+#define I2S_SCK 5                // Audio data bit clock (from I2S master = DABShield)
+#define I2S_WS 25                // Audio data left and right clock (from I2S master = DABShield)
+#define I2S_SDOUT 26             // Audio data output (to DAC)
+#define I2S_SDIN 33              // Audio data input (from DAB Shield)
 
 #define DAB_SPI_SLAVE_SELECT 12
 
@@ -60,7 +66,12 @@ unsigned long lastSelectedSourceTime = 0;
 
 // Devices
 DAB dab;
+
 dabradio::Display *display;
+
+I2SStream i2s;
+BluetoothA2DPSink bluetoothSink(i2s);
+
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 
@@ -229,9 +240,16 @@ void setup() {
 
     LOG_DEBUG("Initializing audio sources...");
 
+    auto cfg = i2s.defaultConfig();
+    cfg.pin_bck = I2S_SCK;
+    cfg.pin_ws = I2S_WS;
+    cfg.pin_data = I2S_SDOUT;
+    cfg.pin_data_rx = I2S_SDIN;
+    // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
+
     sources[0] = new dabradio::FMRadio(display, &dab);
     sources[1] = new dabradio::DABRadio(display, &dab);
-    sources[2] = new dabradio::Bluetooth(display);
+    sources[2] = new dabradio::Bluetooth(display, &bluetoothSink);
 
     pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);

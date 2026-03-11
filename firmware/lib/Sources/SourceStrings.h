@@ -5,6 +5,7 @@ namespace com::ironbird::esp32dabradio {
     constexpr char SOURCE_FM_RADIO[] = "FM Radio";
     constexpr char SOURCE_DAB_RADIO[] = "DAB Radio";
     constexpr char SOURCE_BLUETOOTH[] = "Bluetooth";
+    constexpr char BLUETOOTH_NAME[] = "Philips BF501";
 
     // Modes
     constexpr char MODE_MANUAL[] = "MAN";

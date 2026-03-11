@@ -102,6 +102,11 @@ namespace com::ironbird::esp32dabradio {
         LOG_INFO("Activated FM source \"%s\"", name);
     }
 
+    void FMRadio::deactivate() {
+        LOG_DEBUG("Deactivating source \"%s\"...", name);
+        active = false;
+    }
+
     void FMRadio::tick() {
         if (targetFrequency != dab->freq
             && lastTargetFrequencyChange + CHANGE_FREQUENCY_DELAY_MS < millis()) {
@@ -302,12 +307,6 @@ namespace com::ironbird::esp32dabradio {
 
     void FMRadio::modeDoublePressed() {
         refreshListPresets();
-    }
-
-    void FMRadio::deactivate() {
-        LOG_DEBUG("De-activating \"%s\"...", name);
-        active = false;
-        LOG_INFO("De-activated \"%s\"", name);
     }
 
     void FMRadio::modeOrTuningChanged() {
