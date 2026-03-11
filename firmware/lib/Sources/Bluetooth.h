@@ -4,9 +4,10 @@
 #include <Display.h>
 #include <SourceStrings.h>
 
-
-class Bluetooth : public AudioSource {
-public:
-    Bluetooth(Display *display) : AudioSource(SOURCE_BLUETOOTH, false, true, false, display) {
+namespace com::ironbird::esp32dabradio {
+    class Bluetooth : public AudioSource {
+    public:
+        Bluetooth(Display *display) : AudioSource(SOURCE_BLUETOOTH, false, true, false, display) {
+        };
     };
-};
+}
