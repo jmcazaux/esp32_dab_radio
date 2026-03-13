@@ -99,7 +99,7 @@ namespace com::ironbird::esp32dabradio {
         modeOrTuningChanged();
 
         active = true;
-        LOG_INFO("Activated FM source \"%s\"", name);
+        LOG_INFO("Activated source \"%s\"", name);
     }
 
     void FMRadio::deactivate() {
