@@ -31,7 +31,7 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define SELECTOR_ENCODER_DT 16   // to DT pin of the mode selector rotary encoder
 #define SELECTOR_ENCODER_CLK 17  // to CLK pin of the mode selector rotary encoder
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
-#define TUNE_ENCODER_DT 36       // to DT pin of the mode selector rotary encoder
+#define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
 #define I2S_SCK 25               // Audio data bit clock (from I2S master = DABShield)
 #define I2S_SDOUT 02             // Audio data output (to DAC)

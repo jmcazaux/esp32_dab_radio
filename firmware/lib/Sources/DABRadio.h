@@ -39,8 +39,8 @@ namespace com::ironbird::esp32dabradio {
             uint32_t serviceId = 0;
             uint32_t compId = 0;
 
-            char serviceName[64] = "";
-            char serviceData[128] = "";
+            char serviceName[SERVICE_INFO_NAME_LENGTH + 1] = "";
+            char serviceData[SERVICE_INFO_DATA_LENGTH + 1] = "";
 
             uint16_t year = 0;
             uint8_t month = 0;
@@ -67,7 +67,7 @@ namespace com::ironbird::esp32dabradio {
             uint8_t dabEnsemble = 0;
             uint32_t serviceId = 0;
             uint32_t compId = 0;
-            char name[32] = "";
+            char name[SERVICE_INFO_NAME_LENGTH + 1] = "";
         };
 
         static bool presetComparator(const Preset &lhs, const Preset &rhs);
