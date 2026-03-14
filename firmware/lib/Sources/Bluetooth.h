@@ -6,6 +6,7 @@
 #include <SourceStrings.h>
 
 #include "BluetoothA2DPSink.h"
+#include "SourceConstants.h"
 
 
 class BluetoothA2DPSink;
@@ -22,6 +23,9 @@ namespace com::ironbird::esp32dabradio {
 
         void deactivate() override;
 
+        void displayInformation() override;
+
+        // Used for BluetoothAD2P call backs
         void connectionStateChanged(esp_a2d_connection_state_t state);
 
     private:
@@ -33,8 +37,25 @@ namespace com::ironbird::esp32dabradio {
                 CONNECTED,
             };
 
-            char peerName[64] = "";
+            enum class Mode {
+                PLAYING,
+                PAUSED,
+                STOPPED
+            };
+
             State state = State::NOT_CONNECTED;
+            Mode mode = Mode::STOPPED;
+
+            char peerName[SERVICE_INFO_NAME_LENGTH + 1] = "";
+            char album[SERVICE_INFO_DATA_LENGTH + 1] = "";
+            char artist[SERVICE_INFO_DATA_LENGTH + 1] = "";
+            char track[SERVICE_INFO_DATA_LENGTH + 1] = "";
+
+            unsigned long playPosition = 0;
+            unsigned long trackLength = 0;
+
+            unsigned int trackNumber = 0;
+            unsigned long numberOfTracks = 0;
         };
 
         BluetoothA2DPSink *bluetoothSink;
@@ -42,6 +63,12 @@ namespace com::ironbird::esp32dabradio {
         ServiceInfo serviceInfo{};
 
         static void onConnectionStateChanged(esp_a2d_connection_state_t state, void *obj);
+
+        static void onPeerNameChanged(char *peer_name);
+
+        static void onAVRCMetadataChanged(uint8_t, const uint8_t *);
+
+        static void onPlayPositionChanged(uint32_t play_pos);
 
         void displayName() const;
     };

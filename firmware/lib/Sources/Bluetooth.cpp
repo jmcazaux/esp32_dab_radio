@@ -11,14 +11,25 @@
 #include "../../.pio/libdeps/debug/ESP32-A2DP/src/BluetoothA2DPSink.h"
 
 namespace com::ironbird::esp32dabradio {
+    constexpr char LOG_TAG[] = "E32DR";
+
     void Bluetooth::onConnectionStateChanged(esp_a2d_connection_state_t state, void *obj) {
-        LOG_DEBUG("Connections state changed: %d", state);
+        ESP_LOGD("Connections state changed: %d", state);
         auto *instance = static_cast<Bluetooth *>(obj);
         instance->connectionStateChanged(state);
     }
 
-    static void onPeerNameChanged(char *peer_name) {
-        ESP_LOGW("E32DR", "Peer name changed: %s", peer_name);
+    void Bluetooth::onPeerNameChanged(char *peer_name) {
+        char buffer[SERVICE_INFO_NAME_LENGTH + 1];
+        strncpy(buffer, peer_name, SERVICE_INFO_NAME_LENGTH);
+
+        ESP_LOGD(LOG_TAG, "Peer name changed \"%s\"", buffer);
+    }
+
+    void Bluetooth::onAVRCMetadataChanged(uint8_t, const uint8_t *) {
+    }
+
+    void Bluetooth::onPlayPositionChanged(uint32_t play_pos) {
     }
 
     void Bluetooth::displayName() const {
@@ -41,30 +52,61 @@ namespace com::ironbird::esp32dabradio {
                 serviceInfo.state = ServiceInfo::State::CONNECTED;
                 break;
         }
-
-        ESP_LOGW("E32DR", "Connections state change registered: %d", static_cast<int>(serviceInfo.state));
+        displayInformation();
+        ESP_LOGW(LOG_TAG, "Connections state change registered: %d", static_cast<int>(serviceInfo.state));
     }
 
 
     void Bluetooth::activate() {
         displayName();
         if (active) {
-            LOG_DEBUG("%s already active... Skipping activation.");
+            ESP_LOGD(LOG_TAG, "%s already active... Skipping activation.");
             return;
         }
 
-        LOG_DEBUG("Activating source %s...", name);
+        ESP_LOGD(LOG_TAG, "Activating source %s...", name);
 
-        LOG_DEBUG("Setting callback %p", this);
+        ESP_LOGD(LOG_TAG, "Setting callback %p", this);
         bluetoothSink->set_on_connection_state_changed(onConnectionStateChanged, this);
         bluetoothSink->set_peer_name_callback(onPeerNameChanged);
+        bluetoothSink->set_avrc_metadata_callback(onAVRCMetadataChanged);
+        bluetoothSink->set_avrc_rn_play_pos_callback(onPlayPositionChanged, 1);
 
         bluetoothSink->start(BLUETOOTH_NAME);
-        LOG_INFO("Bluetooth AD2P service advertised as \"%s\"", BLUETOOTH_NAME);
-        LOG_INFO("Activated source \"%s\"", name);
+        ESP_LOGI(LOG_TAG, "Bluetooth AD2P service advertised as \"%s\"", BLUETOOTH_NAME);
+
+        displayInformation();
+
+        ESP_LOGI(LOG_TAG, "Activated source \"%s\"", name);
     }
 
     void Bluetooth::deactivate() {
         bluetoothSink->stop();
+        active = false;
+    }
+
+    void Bluetooth::displayInformation() {
+        ESP_LOGD(LOG_TAG, "Displaying %s service information...", name);
+        unsigned long now = millis();
+        switch (serviceInfo.state) {
+            case ServiceInfo::State::NOT_CONNECTED: {
+                display->displayLine(CONNECT_TO, 1, CENTER);
+                display->displayLine(BLUETOOTH_NAME, 2, CENTER);
+                display->clearLine(3);
+                break;
+            }
+            case ServiceInfo::State::CONNECTING:
+                display->displayLine(CONNECTING, 1, CENTER);
+                display->clearLine(2);
+                display->clearLine(3);
+                break;
+            case ServiceInfo::State::CONNECTED:
+                display->displayJustified(name, CONNECTED, 0);
+                display->clearLine(1);
+                display->clearLine(2);
+                display->clearLine(3);
+                break;
+        }
+        ESP_LOGI(LOG_TAG, "Displayed %s service information (%d ms)...", name, millis() - now);
     }
 }
