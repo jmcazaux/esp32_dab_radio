@@ -3,13 +3,12 @@
 #include <AudioSource.h>
 #include <Display.h>
 #include <esp_a2dp_api.h>
+#include <mutex>
 #include <SourceStrings.h>
+#include <SourceConstants.h>
 
 #include "BluetoothA2DPSink.h"
-#include "SourceConstants.h"
 
-
-class BluetoothA2DPSink;
 
 namespace com::ironbird::esp32dabradio {
     class Bluetooth : public AudioSource {
@@ -23,10 +22,8 @@ namespace com::ironbird::esp32dabradio {
 
         void deactivate() override;
 
-        void displayInformation() override;
 
-        // Used for BluetoothAD2P call backs
-        void connectionStateChanged(esp_a2d_connection_state_t state);
+        void displayInformation() override;
 
     private:
         class ServiceInfo {
@@ -56,11 +53,21 @@ namespace com::ironbird::esp32dabradio {
 
             unsigned int trackNumber = 0;
             unsigned long numberOfTracks = 0;
+
+            bool operator==(const ServiceInfo &other) const;
+
+            void copyFrom(const ServiceInfo &other);
+
+            void clear();
         };
+
+        std::mutex mutex;
 
         BluetoothA2DPSink *bluetoothSink;
 
         ServiceInfo serviceInfo{};
+
+        void displayServiceInfo() const;
 
         static void onConnectionStateChanged(esp_a2d_connection_state_t state, void *obj);
 
@@ -71,5 +78,7 @@ namespace com::ironbird::esp32dabradio {
         static void onPlayPositionChanged(uint32_t play_pos);
 
         void displayName() const;
+
+        static ServiceInfo::State mapConnectionState(esp_a2d_connection_state_t state);
     };
 }

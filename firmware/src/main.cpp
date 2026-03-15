@@ -17,6 +17,8 @@
 #include <BluetoothA2DPSink.h>
 #include <esp_log.h>
 
+#include "../lib/ESP32-A2DP/src/BluetoothA2DPSink.h"
+
 
 namespace dabradio = com::ironbird::esp32dabradio;
 
@@ -44,6 +46,8 @@ namespace dabradio = com::ironbird::esp32dabradio;
 constexpr char LOG_FILE_PATH[] = "/internal/log.txt";
 constexpr ulong MAX_LOG_LINES = 500;
 
+constexpr char LOG_TAG[] = "E32DR";
+
 // Delays & timings
 constexpr ulong SWITCH_SOURCE_DELAY = 400;
 // Delay between a source is selected and the source become active (avoid switching source at each encoder tick)
@@ -63,6 +67,7 @@ dabradio::AudioSource *sources[NB_SOURCES];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
+dabradio::AudioSource *currentSource = nullptr;
 unsigned long lastSelectedSourceTime = 0;
 
 
@@ -88,10 +93,35 @@ void logFrequencies() {
     LOG_DEBUG(" > XTAL frequency: %dMHz", getXtalFrequencyMhz());
 }
 
-void serviceData() {
-    LOG_DEBUG("Got service data...", currentSourceIndex);
-    sources[currentSourceIndex]->displayInformation();
+void dabServiceDataCallback() {
+    LOG_DEBUG("Got DAB service data...", currentSourceIndex);
+    currentSource->displayInformation();
 }
+
+void onBluetoothConnectionStateChanged(esp_a2d_connection_state_t state, void *obj) {
+    ESP_LOGD(LOG_TAG, "Bluetooth connections state changed: %d", state);
+    currentSource->displayInformation();
+}
+
+void onBluetoothPeerNameChanged(char *peer_name) {
+    char buffer[129];
+    strncpy(buffer, peer_name, 128);
+    ESP_LOGD(LOG_TAG, "Bluetooth peer name changed to \"%s\"", buffer);
+    currentSource->displayInformation();
+}
+
+void onBluetoothAVRCMetadataChanged(uint8_t metadata, const uint8_t *value) {
+    char buffer[129];
+    strncpy(buffer, (char *) value, 128);
+    ESP_LOGD(LOG_TAG, "Bluetooth AVRC metadata 0x%xd changed to \"%s\"", metadata, buffer);
+    currentSource->displayInformation();
+}
+
+void onBluetoothPlayPositionChanged(uint32_t play_pos) {
+    ESP_LOGD(LOG_TAG, "Bluetooth play position changed to %ds.", play_pos / 100);
+    currentSource->displayInformation();
+}
+
 
 void DABSpiMsg(unsigned char *data, uint32_t len) {
     SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0)); // 2MHz for starters...
@@ -102,15 +132,23 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 }
 
 void enableBluetooth() {
+    bluetoothSink.set_on_connection_state_changed(onBluetoothConnectionStateChanged);
+    bluetoothSink.set_peer_name_callback(onBluetoothPeerNameChanged);
+    bluetoothSink.set_avrc_metadata_callback(onBluetoothAVRCMetadataChanged);
+    bluetoothSink.set_avrc_rn_play_pos_callback(onBluetoothPlayPositionChanged);
 }
 
 void disableBluetooth() {
+    bluetoothSink.set_on_connection_state_changed(nullptr);
+    bluetoothSink.set_peer_name_callback(nullptr);
+    bluetoothSink.set_avrc_metadata_callback(nullptr);
+    bluetoothSink.set_avrc_rn_play_pos_callback(nullptr);
 }
 
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
     display->displayLine(SWITCHING_RADIO_ON, 2, dabradio::CENTER);
-    dab.setCallback(serviceData);
+    dab.setCallback(dabServiceDataCallback);
     dab.mute(true, true); // Avoid "tuning" noises
     dab.begin(1); // Actual mode set by the AudioSource
     if (dab.error != 0) {
@@ -158,11 +196,13 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
 
     // Toggle Bluetooth:
     if (fromSource == nullptr || toSource->needsBluetooth != fromSource->needsBluetooth) {
+        LOG_DEBUG("Switching bluetooth %s...", toSource->needsBluetooth ? "ON" : "OFF");
         if (toSource->needsBluetooth) {
             enableBluetooth();
         } else {
             disableBluetooth();
         }
+        LOG_INFO("Switched bluetooth %s", toSource->needsBluetooth ? "ON" : "OFF");
     }
 
 
@@ -171,18 +211,20 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
 
     currentSourceIndex = toSourceIdx;
     selectedSourceIndex = toSourceIdx;
+    currentSource = sources[currentSourceIndex];
+
 
     preferences.putInt(PREVIOUS_SOURCE_KEY, currentSourceIndex);
 }
 
 void selectorClicked() {
     LOG_DEBUG("Selector clicked");
-    sources[currentSourceIndex]->modePressed();
+    currentSource->modePressed();
 }
 
 void selectorDoubleClicked() {
     LOG_DEBUG("Selector double-clicked");
-    sources[currentSourceIndex]->modeDoublePressed();
+    currentSource->modeDoublePressed();
 }
 
 void selectorLongPressStarted() {
@@ -195,22 +237,22 @@ void selectorLongPressStopped() {
 
 void tuneClicked() {
     LOG_DEBUG("Tune clicked");
-    sources[currentSourceIndex]->tunePressed();
+    currentSource->tunePressed();
 }
 
 void tuneDoubleClicked() {
     LOG_DEBUG("Tune double-clicked");
-    sources[currentSourceIndex]->tuneDoublePressed();
+    currentSource->tuneDoublePressed();
 }
 
 void tuneLongPressStarted() {
     LOG_DEBUG("Tune long-press started");
-    sources[currentSourceIndex]->tuneLongPressed();
+    currentSource->tuneLongPressed();
 }
 
 void tuneLongPressStopped() {
     LOG_DEBUG("Tune long-press stopped");
-    sources[currentSourceIndex]->tuneReleased();
+    currentSource->tuneReleased();
 }
 
 void setup() {
@@ -303,7 +345,7 @@ void loop() {
         source->tick();
     }
 
-    if (sources[currentSourceIndex]->needsRadio) {
+    if (currentSource->needsRadio) {
         dab.task();
     }
 
@@ -334,9 +376,9 @@ void loop() {
         RotaryEncoder::Direction tuneDirection = tuneEncoder.getDirection();
         LOG_DEBUG("Tuning %s", tuneDirection == RotaryEncoder::Direction::CLOCKWISE ? "UP" : "DOWN");
         if (tuneDirection == RotaryEncoder::Direction::CLOCKWISE) {
-            sources[currentSourceIndex]->tuneUp();
+            currentSource->tuneUp();
         } else {
-            sources[currentSourceIndex]->tuneDown();
+            currentSource->tuneDown();
         }
         tunerPosition = newTunerPosition;
     }
