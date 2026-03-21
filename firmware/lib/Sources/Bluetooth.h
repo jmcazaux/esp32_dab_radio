@@ -10,12 +10,16 @@
 #include "BluetoothA2DPSink.h"
 
 
+class BluetoothA2DPSink;
+
 namespace com::ironbird::esp32dabradio {
     class Bluetooth : public AudioSource {
     public:
-        Bluetooth(Display *display, BluetoothA2DPSink *bluetoothSink) : AudioSource(
-                                                                            SOURCE_BLUETOOTH, false, true, false,
-                                                                            display), bluetoothSink(bluetoothSink) {
+        static BluetoothA2DPSink *bluetoothSink;
+
+        Bluetooth(Display *display) : AudioSource(
+            SOURCE_BLUETOOTH, false, true, false,
+            display) {
         }
 
         void activate() override;
@@ -31,6 +35,7 @@ namespace com::ironbird::esp32dabradio {
             enum class State {
                 NOT_CONNECTED,
                 CONNECTING,
+                DISCONNECTING,
                 CONNECTED,
             };
 
@@ -63,11 +68,13 @@ namespace com::ironbird::esp32dabradio {
 
         std::mutex mutex;
 
-        BluetoothA2DPSink *bluetoothSink;
-
         ServiceInfo serviceInfo{};
 
         void displayServiceInfo() const;
+
+        void displayServiceInfoIfNeeded(ServiceInfo &newServiceInfo);
+
+        void displayName() const;
 
         static void onConnectionStateChanged(esp_a2d_connection_state_t state, void *obj);
 
@@ -77,7 +84,13 @@ namespace com::ironbird::esp32dabradio {
 
         static void onPlayPositionChanged(uint32_t play_pos);
 
-        void displayName() const;
+        void setPlayPosition(uint32_t playPos);
+
+        void setPeerName(char *name);
+
+        void setConnectionState(ServiceInfo::State state);
+
+        void setAVRCMetadata(uint8_t metadata, char *value);
 
         static ServiceInfo::State mapConnectionState(esp_a2d_connection_state_t state);
     };

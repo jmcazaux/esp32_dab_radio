@@ -24,5 +24,6 @@ namespace com::ironbird::esp32dabradio {
     constexpr char RELEASE_TO_STORE[] = "Release to store";
     constexpr char CONNECT_TO[] = "Connect to:";
     constexpr char CONNECTING[] = "Connecting...";
+    constexpr char DISCONNECTING[] = "Disconnecting...";
     constexpr char CONNECTED[] = "Connected";
 }

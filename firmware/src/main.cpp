@@ -17,7 +17,7 @@
 #include <BluetoothA2DPSink.h>
 #include <esp_log.h>
 
-#include "../lib/ESP32-A2DP/src/BluetoothA2DPSink.h"
+#include "BluetoothA2DPSink.h"
 
 
 namespace dabradio = com::ironbird::esp32dabradio;
@@ -86,7 +86,7 @@ OneButton selectorButton(SELECTOR_ENCODER_SW, true, true);
 OneButton tuneButton(TUNE_ENCODER_SW, true, true);
 constexpr uint BUTTON_DOUBLECLICK_DELAY_MS = 300;
 
-void logFrequencies() {
+void logCpuFrequencies() {
     LOG_DEBUG("Frequencies:");
     LOG_DEBUG(" > CPU clock:      %dMHz", getCpuFrequencyMhz());
     LOG_DEBUG(" > ABP frequency:  %dMHz", getApbFrequency() / 1000000);
@@ -95,30 +95,6 @@ void logFrequencies() {
 
 void dabServiceDataCallback() {
     LOG_DEBUG("Got DAB service data...", currentSourceIndex);
-    currentSource->displayInformation();
-}
-
-void onBluetoothConnectionStateChanged(esp_a2d_connection_state_t state, void *obj) {
-    ESP_LOGD(LOG_TAG, "Bluetooth connections state changed: %d", state);
-    currentSource->displayInformation();
-}
-
-void onBluetoothPeerNameChanged(char *peer_name) {
-    char buffer[129];
-    strncpy(buffer, peer_name, 128);
-    ESP_LOGD(LOG_TAG, "Bluetooth peer name changed to \"%s\"", buffer);
-    currentSource->displayInformation();
-}
-
-void onBluetoothAVRCMetadataChanged(uint8_t metadata, const uint8_t *value) {
-    char buffer[129];
-    strncpy(buffer, (char *) value, 128);
-    ESP_LOGD(LOG_TAG, "Bluetooth AVRC metadata 0x%xd changed to \"%s\"", metadata, buffer);
-    currentSource->displayInformation();
-}
-
-void onBluetoothPlayPositionChanged(uint32_t play_pos) {
-    ESP_LOGD(LOG_TAG, "Bluetooth play position changed to %ds.", play_pos / 100);
     currentSource->displayInformation();
 }
 
@@ -132,17 +108,9 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 }
 
 void enableBluetooth() {
-    bluetoothSink.set_on_connection_state_changed(onBluetoothConnectionStateChanged);
-    bluetoothSink.set_peer_name_callback(onBluetoothPeerNameChanged);
-    bluetoothSink.set_avrc_metadata_callback(onBluetoothAVRCMetadataChanged);
-    bluetoothSink.set_avrc_rn_play_pos_callback(onBluetoothPlayPositionChanged);
 }
 
 void disableBluetooth() {
-    bluetoothSink.set_on_connection_state_changed(nullptr);
-    bluetoothSink.set_peer_name_callback(nullptr);
-    bluetoothSink.set_avrc_metadata_callback(nullptr);
-    bluetoothSink.set_avrc_rn_play_pos_callback(nullptr);
 }
 
 void enableRadio() {
@@ -181,7 +149,7 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
         Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
-        logFrequencies();
+        logCpuFrequencies();
         LOG_INFO("Set CPU frequency to %ldMhz", frequency);
     }
 
@@ -292,9 +260,10 @@ void setup() {
     // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
     i2s.begin(cfg);
 
+    dabradio::Bluetooth::bluetoothSink = &bluetoothSink;
     sources[0] = new dabradio::FMRadio(display, &dab);
     sources[1] = new dabradio::DABRadio(display, &dab);
-    sources[2] = new dabradio::Bluetooth(display, &bluetoothSink);
+    sources[2] = new dabradio::Bluetooth(display);
 
     pinMode(DAB_SPI_SLAVE_SELECT, OUTPUT);
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
