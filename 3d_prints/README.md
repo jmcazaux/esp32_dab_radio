@@ -11,10 +11,10 @@ This little bracket was printed from "tough" TPU ([Bambulab's AMS TPU](https://e
   <table>
   <tr>
     <td>
-      <img style="width: 480px;" src="images/5v_reg_bracket_3d.png" alt="5v Regulatior Bracket Model"/>
+      <img style="width: 360px;" src="images/5v_reg_bracket_3d.png" alt="5v Regulatior Bracket Model"/>
     </td>
     <td>
-      <img style="width: 480px;" src="images/5v_reg_bracket_photo.jpg" alt="5v Regulatior Bracket Photo"/>
+      <img style="width: 360px;" src="images/5v_reg_bracket_photo.jpg" alt="5v Regulatior Bracket Photo"/>
     </td>
   </tr>
   </table>
