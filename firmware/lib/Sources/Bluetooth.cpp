@@ -21,9 +21,9 @@ namespace com::ironbird::esp32dabradio {
         instance->setConnectionState(connectionState);
     }
 
-    void Bluetooth::onPeerNameChanged(char *peer_name) {
+    void Bluetooth::onPeerNameChanged(char *peerName) {
         char buffer[SERVICE_INFO_NAME_LENGTH + 1];
-        strncpy(buffer, peer_name, SERVICE_INFO_NAME_LENGTH);
+        strncpy(buffer, peerName, SERVICE_INFO_NAME_LENGTH);
         ESP_LOGD(LOG_TAG, "Peer name changed \"%s\"", buffer);
 
         auto *instance = static_cast<Bluetooth *>(bluetoothSink->get_reference());
@@ -39,12 +39,24 @@ namespace com::ironbird::esp32dabradio {
         instance->setAVRCMetadata(parameter, buffer);
     }
 
-    void Bluetooth::onPlayPositionChanged(uint32_t play_pos) {
+    void Bluetooth::onPlayPositionChanged(uint32_t playPos) {
+        ESP_LOGD(LOG_TAG, "Play position changed %d ms", playPos);
+        auto *instance = static_cast<Bluetooth *>(bluetoothSink->get_reference());
+        instance->setPlayPosition(playPos);
     }
+
+    void Bluetooth::onPlayStatusChanged(esp_avrc_playback_stat_t rawPlayStatus) {
+        auto playStatus = mapPlayStatus(rawPlayStatus);
+        ESP_LOGD(LOG_TAG, "Play status changed 0x%x (source 0x%x)", internalPlayStatus, playStatus);
+        auto *instance = static_cast<Bluetooth *>(bluetoothSink->get_reference());
+        instance->setPlayStatus(playStatus);
+    }
+
 
     void Bluetooth::displayName() const {
         display->displayLine(name, 0);
     }
+
 
     void Bluetooth::activate() {
         displayName();
@@ -61,6 +73,7 @@ namespace com::ironbird::esp32dabradio {
         bluetoothSink->set_peer_name_callback(onPeerNameChanged);
         bluetoothSink->set_avrc_metadata_callback(onAVRCMetadataChanged);
         bluetoothSink->set_avrc_rn_play_pos_callback(onPlayPositionChanged, 1);
+        bluetoothSink->set_avrc_rn_playstatus_callback(onPlayStatusChanged);
 
         bluetoothSink->start(BLUETOOTH_NAME);
         ESP_LOGI(LOG_TAG, "Bluetooth AD2P service advertised as \"%s\"", BLUETOOTH_NAME);
@@ -74,6 +87,7 @@ namespace com::ironbird::esp32dabradio {
         ESP_LOGI(LOG_TAG, "Activated source \"%s\"", name);
     }
 
+
     void Bluetooth::deactivate() {
         if (bluetoothSink->is_connected()) {
             bluetoothSink->set_connected(false);
@@ -82,6 +96,42 @@ namespace com::ironbird::esp32dabradio {
         active = false;
         serviceInfo.clear();
     }
+
+
+    void Bluetooth::displayServiceConnectedInfo() const {
+        display->displayJustified(name, CONNECTED, 0);
+        display->displayLine(serviceInfo.peerName, 1, CENTER);
+
+        // Artist + album
+        char buffer[SERVICE_INFO_DATA_LENGTH * 2 + 4];
+        if (strlen(serviceInfo.artist) & strlen(serviceInfo.album)) {
+            sprintf(buffer, "%s - %s", serviceInfo.artist, serviceInfo.album);
+        } else {
+            // Only either is filled
+            sprintf(buffer, "%s%s", serviceInfo.artist, serviceInfo.album);
+        }
+        display->displayLine(buffer, 2, ROLLING_LEFT);
+
+        switch (serviceInfo.playStatus) {
+            case ServiceInfo::PlayStatus::PLAYING:
+                // Track
+                if (serviceInfo.numberOfTracks > 1 || serviceInfo.trackNumber > 1) {
+                    sprintf(buffer, "%s - %d/%d", serviceInfo.track, serviceInfo.trackNumber,
+                            serviceInfo.numberOfTracks);
+                } else {
+                    sprintf(buffer, "%s", serviceInfo.track);
+                }
+                display->displayLine(buffer, 3, ROLLING_LEFT);
+                break;
+            case ServiceInfo::PlayStatus::PAUSED:
+                display->displayLine(PAUSED, 3, CENTER);
+                break;
+            case ServiceInfo::PlayStatus::STOPPED:
+                display->displayLine(STOPPED, 3, CENTER);
+                break;
+        }
+    }
+
 
     void Bluetooth::displayServiceInfo() const {
         ESP_LOGD(LOG_TAG, "Displaying %s service information...", name);
@@ -107,25 +157,12 @@ namespace com::ironbird::esp32dabradio {
                 display->clearLine(3);
                 break;
             case ServiceInfo::State::CONNECTED:
-                display->displayJustified(name, CONNECTED, 0);
-                display->displayLine(serviceInfo.peerName, 1, CENTER);
-
-                // Artist + album
-                char buffer[SERVICE_INFO_DATA_LENGTH * 2 + 4];
-                if (strlen(serviceInfo.artist) & strlen(serviceInfo.album)) {
-                    sprintf(buffer, "%s - %s", serviceInfo.artist, serviceInfo.album);
-                } else {
-                    // Only either is filled
-                    sprintf(buffer, "%s%s", serviceInfo.artist, serviceInfo.album);
-                }
-                display->displayLine(buffer, 2, ROLLING_LEFT);
-
-                // Track
-                display->displayLine(serviceInfo.track, 3, ROLLING_LEFT);
+                displayServiceConnectedInfo();
                 break;
         }
         ESP_LOGI(LOG_TAG, "Displayed %s service information (%d ms)...", name, millis() - now);
     }
+
 
     void Bluetooth::setPlayPosition(uint32_t playPos) {
         ServiceInfo newServiceInfo;
@@ -181,12 +218,10 @@ namespace com::ironbird::esp32dabradio {
                 break;
 
             case ESP_AVRC_MD_ATTR_GENRE:
-                // This is not handled yet...
+            case ESP_AVRC_MD_ATTR_PLAYING_TIME:
+                // These are not handled yet...
                 break;
 
-            case ESP_AVRC_MD_ATTR_PLAYING_TIME:
-                newServiceInfo.trackLength = std::stol(value);
-                break;
             default:
                 ESP_LOGW(LOG_TAG, "Unknown metadata 0x%x - \"%s\"", metadata, value);
         }
@@ -194,9 +229,16 @@ namespace com::ironbird::esp32dabradio {
         displayServiceInfoIfNeeded(newServiceInfo);
     }
 
+    void Bluetooth::setPlayStatus(ServiceInfo::PlayStatus playStatus) {
+        auto newServiceInfo = ServiceInfo{};
+        newServiceInfo.copyFrom(serviceInfo);
+        newServiceInfo.playStatus = playStatus;
+        displayServiceInfoIfNeeded(newServiceInfo);
+    }
+
     void Bluetooth::displayServiceInfoIfNeeded(ServiceInfo &newServiceInfo) {
         // State and peer name callbacks might be a bit racy on startup
-        // Making sure we have the right state
+        // Making sure we have the right state & peer name
         newServiceInfo.state = mapConnectionState(bluetoothSink->get_connection_state());
         strncpy(newServiceInfo.peerName, bluetoothSink->get_peer_name(), SERVICE_INFO_NAME_LENGTH);
 
@@ -208,7 +250,7 @@ namespace com::ironbird::esp32dabradio {
         ESP_LOGI(LOG_TAG, "Displaying new service info...");
         ESP_LOGI(LOG_TAG, " > Connected state: %d", newServiceInfo.state);
         ESP_LOGI(LOG_TAG, " > Peer name:       \"%s\"", newServiceInfo.peerName);
-        ESP_LOGI(LOG_TAG, " > Mode:            %d", newServiceInfo.mode);
+        ESP_LOGI(LOG_TAG, " > Mode:            %d", newServiceInfo.playStatus);
         ESP_LOGI(LOG_TAG, " > Artist:          %s", newServiceInfo.artist);
         ESP_LOGI(LOG_TAG, " > Album:           %s", newServiceInfo.album);
         ESP_LOGI(LOG_TAG, " > Track:           %s", newServiceInfo.track);
@@ -250,13 +292,29 @@ namespace com::ironbird::esp32dabradio {
         return ServiceInfo::State::NOT_CONNECTED;
     }
 
+    Bluetooth::ServiceInfo::PlayStatus Bluetooth::mapPlayStatus(esp_avrc_playback_stat_t playStatus) {
+        switch (playStatus) {
+            case ESP_AVRC_PLAYBACK_STOPPED:
+                return ServiceInfo::PlayStatus::STOPPED;
+            case ESP_AVRC_PLAYBACK_PLAYING:
+            case ESP_AVRC_PLAYBACK_FWD_SEEK:
+            case ESP_AVRC_PLAYBACK_REV_SEEK:
+                return ServiceInfo::PlayStatus::PLAYING;
+            case ESP_AVRC_PLAYBACK_PAUSED:
+                return ServiceInfo::PlayStatus::PAUSED;
+            case ESP_AVRC_PLAYBACK_ERROR:
+                return ServiceInfo::PlayStatus::STOPPED;
+        }
+        return ServiceInfo::PlayStatus::STOPPED;
+    }
+
     bool Bluetooth::ServiceInfo::operator==(const ServiceInfo &other) const {
         if (this->numberOfTracks != other.numberOfTracks) return false;
         if (this->trackNumber != other.trackNumber) return false;
         if (this->playPosition != other.playPosition) return false;
         if (this->trackLength != other.trackLength) return false;
         if (this->state != other.state) return false;
-        if (this->mode != other.mode) return false;
+        if (this->playStatus != other.playStatus) return false;
         if (strcmp(this->peerName, other.peerName) != 0) return false;
         if (strcmp(this->album, other.album) != 0) return false;
         if (strcmp(this->artist, other.artist) != 0) return false;
@@ -271,7 +329,7 @@ namespace com::ironbird::esp32dabradio {
         this->playPosition = other.playPosition;
         this->trackLength = other.trackLength;
         this->state = other.state;
-        this->mode = other.mode;
+        this->playStatus = other.playStatus;
         strcpy(this->peerName, other.peerName);
         strcpy(this->album, other.album);
         strcpy(this->artist, other.artist);
@@ -285,7 +343,7 @@ namespace com::ironbird::esp32dabradio {
         this->playPosition = 0;
         this->trackLength = 0;
         this->state = State::NOT_CONNECTED;
-        this->mode = Mode::STOPPED;
+        this->playStatus = PlayStatus::STOPPED;
         strcpy(this->peerName, "");
         strcpy(this->album, "");
         strcpy(this->artist, "");

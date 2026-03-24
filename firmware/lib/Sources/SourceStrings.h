@@ -26,4 +26,6 @@ namespace com::ironbird::esp32dabradio {
     constexpr char CONNECTING[] = "Connecting...";
     constexpr char DISCONNECTING[] = "Disconnecting...";
     constexpr char CONNECTED[] = "Connected";
+    constexpr char STOPPED[] = "Stopped";
+    constexpr char PAUSED[] = "Paused";
 }

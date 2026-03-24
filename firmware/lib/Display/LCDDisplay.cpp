@@ -144,7 +144,7 @@ namespace com::ironbird::esp32dabradio {
 
         for (uint8_t i = 0; i < nbLines; i++) {
             DisplaySource *source = &displaySources[i];
-            if (source->alignment == ROLLING_LEFT) {
+            if (source->alignment == ROLLING_LEFT && strlen(source->source()) > nbColumns) {
                 source->rollingIndex++;
                 this->padOrTrim(source->source(), lines[i], nbColumns, source->alignment, source->rollingIndex);
                 lcd->setCursor(0, i);
