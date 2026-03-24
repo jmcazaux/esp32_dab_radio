@@ -19,15 +19,25 @@ The target is to renovate a vintage [Philips radio (model BF501)](https://locati
 </p>
 
 
-## [What is it that we try to achieve?](features.md)
+## [What is it that it (almost) does?](features.md)
+The features of the system are totally independant of the form factor or the cabinet.  
+This can be the base for any ESP32 radio / bluetooth (and more) system.
 
 ## [Cabinet restoration](cabinet.md)
 
-## The application
-TBD
+The Philips BF501 was renowned for a nive veneered chesnut cabinet.  
+We gave it a new life!
+
+## The firmware
+The firmware is architected in a way that it can be easily extended (for example with Spotify or Qobuz Connect).
 
 ## The electronics
 TBD
+
+## [3D printed parts](3d_prints/README.md)
+
+Renovating this radio required designing and 3D printing a few parts.
+
 
 
 
