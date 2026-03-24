@@ -18,14 +18,14 @@ The system shall allow listening to:
 
 The radio sub-system is based on a [DAB Shield board](https://www.dabshield.com/).
 
-It shall allow listening to FM and DAB+ stations.  
-It shall support memorizing stations.
+It allows listening to FM and DAB+ stations.  
+It supports memorizing stations, finding existing staions thru the entire radio band and manual tuning (in the case of FM).
 
 ## Bluetooth
 
-There are 2 options for the Bluetooth:
-- Use an amplifier module that support BT natively (for example, this [Dayton Audio](https://www.daytonaudio.com/product/1863/kabd-250-2-x-50w-all-in-one-amplifier-board-with-dsp-and-bluetooth-5-0-aptx-hd) module),
-- Use the Bluetooth from the ESP 32 board.
+We are using the Wemos D1 R32 Bluetooth capability to offer a Bluetooth audio sink (AD2P).
+
+This is achieved via the great [ESP32-AD2P](https://github.com/pschatzmann/ESP32-A2DP) library from [Phil Schatzmann](https://github.com/pschatzmann).
 
 ## Audio sub-sytem
 _TBD_
