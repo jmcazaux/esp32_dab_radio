@@ -248,7 +248,7 @@ namespace com::ironbird::esp32dabradio {
 
         ServiceInfo newServiceInfo;
         newServiceInfo.copyFrom(serviceInfo);
-        strncpy(newServiceInfo.serviceName, getCurrentPreset().name, 32);;
+        strncpy(newServiceInfo.serviceName, getCurrentPreset().name, SERVICE_INFO_NAME_LENGTH);;
 
         if ((lastDabStatusRefresh + DAB_STATUS_REFRESH_DELAY) < millis()) {
             dab->status();
@@ -366,7 +366,7 @@ namespace com::ironbird::esp32dabradio {
 
     DABRadio::Preset DABRadio::getPresetFromJson(JsonObject preset) {
         auto newPreset = Preset{};
-        strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+        strncpy(newPreset.name, preset[NAME_JSON_KEY], SERVICE_INFO_NAME_LENGTH);
         newPreset.dabEnsemble = preset[ENSEMBLE_ID_JSON_KEY];
         newPreset.serviceId = preset[SERVICE_ID_JSON_KEY];
         newPreset.compId = preset[COMP_ID_JSON_KEY];
@@ -534,7 +534,7 @@ namespace com::ironbird::esp32dabradio {
                     newPreset.dabEnsemble = frequencyIndex;
                     newPreset.serviceId = i;
                     newPreset.compId = dab->service[i].CompID;
-                    strncpy(newPreset.name, dab->service[i].Label, 32);
+                    strncpy(newPreset.name, dab->service[i].Label, SERVICE_INFO_NAME_LENGTH);
                     trim(newPreset.name);
 
                     listPresets.emplace_back(newPreset);

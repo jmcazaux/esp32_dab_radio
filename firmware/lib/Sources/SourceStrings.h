@@ -5,6 +5,7 @@ namespace com::ironbird::esp32dabradio {
     constexpr char SOURCE_FM_RADIO[] = "FM Radio";
     constexpr char SOURCE_DAB_RADIO[] = "DAB Radio";
     constexpr char SOURCE_BLUETOOTH[] = "Bluetooth";
+    constexpr char BLUETOOTH_NAME[] = "Philips BF501";
 
     // Modes
     constexpr char MODE_MANUAL[] = "MAN";
@@ -21,4 +22,10 @@ namespace com::ironbird::esp32dabradio {
     constexpr char MEMORY_PRESET_ID_ONLY[] = "->M%02d";
     constexpr char MEMORY_PRESET_ID_AND_NAME[] = "->M%02d %s";
     constexpr char RELEASE_TO_STORE[] = "Release to store";
+    constexpr char CONNECT_TO[] = "Connect to:";
+    constexpr char CONNECTING[] = "Connecting...";
+    constexpr char DISCONNECTING[] = "Disconnecting...";
+    constexpr char CONNECTED[] = "Connected";
+    constexpr char STOPPED[] = "Stopped";
+    constexpr char PAUSED[] = "Paused";
 }

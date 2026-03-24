@@ -13,6 +13,11 @@
 #include <Preferences.h>
 #include <RotaryEncoder.h>
 #include <SPI.h>
+#include <AudioTools.h>
+#include <BluetoothA2DPSink.h>
+#include <esp_log.h>
+
+#include "BluetoothA2DPSink.h"
 
 
 namespace dabradio = com::ironbird::esp32dabradio;
@@ -30,12 +35,18 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
+#define I2S_SCK 25               // Audio data bit clock (from I2S master = DABShield)
+#define I2S_SDOUT 02             // Audio data output (to DAC)
+#define I2S_WS 04                // Audio data left and right clock (from I2S master = DABShield)
+#define I2S_SDIN 33              // Audio data input (from DAB Shield)
 
 #define DAB_SPI_SLAVE_SELECT 12
 
 // Logging related
 constexpr char LOG_FILE_PATH[] = "/internal/log.txt";
 constexpr ulong MAX_LOG_LINES = 500;
+
+constexpr char LOG_TAG[] = "E32DR";
 
 // Delays & timings
 constexpr ulong SWITCH_SOURCE_DELAY = 400;
@@ -56,11 +67,18 @@ dabradio::AudioSource *sources[NB_SOURCES];
 
 uint8_t currentSourceIndex = 0;
 int selectedSourceIndex = currentSourceIndex;
+dabradio::AudioSource *currentSource = nullptr;
 unsigned long lastSelectedSourceTime = 0;
+
 
 // Devices
 DAB dab;
+
 dabradio::Display *display;
+
+I2SStream i2s;
+BluetoothA2DPSink bluetoothSink(i2s);
+
 RotaryEncoder selectorEncoder(SELECTOR_ENCODER_DT, SELECTOR_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 RotaryEncoder tuneEncoder(TUNE_ENCODER_DT, TUNE_ENCODER_CLK, RotaryEncoder::LatchMode::TWO03);
 
@@ -68,17 +86,18 @@ OneButton selectorButton(SELECTOR_ENCODER_SW, true, true);
 OneButton tuneButton(TUNE_ENCODER_SW, true, true);
 constexpr uint BUTTON_DOUBLECLICK_DELAY_MS = 300;
 
-void logFrequencies() {
+void logCpuFrequencies() {
     LOG_DEBUG("Frequencies:");
     LOG_DEBUG(" > CPU clock:      %dMHz", getCpuFrequencyMhz());
     LOG_DEBUG(" > ABP frequency:  %dMHz", getApbFrequency() / 1000000);
     LOG_DEBUG(" > XTAL frequency: %dMHz", getXtalFrequencyMhz());
 }
 
-void serviceData() {
-    LOG_DEBUG("Got service data...", currentSourceIndex);
-    sources[currentSourceIndex]->displayInformation();
+void dabServiceDataCallback() {
+    LOG_DEBUG("Got DAB service data...", currentSourceIndex);
+    currentSource->displayInformation();
 }
+
 
 void DABSpiMsg(unsigned char *data, uint32_t len) {
     SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0)); // 2MHz for starters...
@@ -97,7 +116,7 @@ void disableBluetooth() {
 void enableRadio() {
     LOG_DEBUG("Switching radio ON...");
     display->displayLine(SWITCHING_RADIO_ON, 2, dabradio::CENTER);
-    dab.setCallback(serviceData);
+    dab.setCallback(dabServiceDataCallback);
     dab.mute(true, true); // Avoid "tuning" noises
     dab.begin(1); // Actual mode set by the AudioSource
     if (dab.error != 0) {
@@ -130,7 +149,7 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
         Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
-        logFrequencies();
+        logCpuFrequencies();
         LOG_INFO("Set CPU frequency to %ldMhz", frequency);
     }
 
@@ -145,11 +164,13 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
 
     // Toggle Bluetooth:
     if (fromSource == nullptr || toSource->needsBluetooth != fromSource->needsBluetooth) {
+        LOG_DEBUG("Switching bluetooth %s...", toSource->needsBluetooth ? "ON" : "OFF");
         if (toSource->needsBluetooth) {
             enableBluetooth();
         } else {
             disableBluetooth();
         }
+        LOG_INFO("Switched bluetooth %s", toSource->needsBluetooth ? "ON" : "OFF");
     }
 
 
@@ -158,18 +179,20 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
 
     currentSourceIndex = toSourceIdx;
     selectedSourceIndex = toSourceIdx;
+    currentSource = sources[currentSourceIndex];
+
 
     preferences.putInt(PREVIOUS_SOURCE_KEY, currentSourceIndex);
 }
 
 void selectorClicked() {
     LOG_DEBUG("Selector clicked");
-    sources[currentSourceIndex]->modePressed();
+    currentSource->modePressed();
 }
 
 void selectorDoubleClicked() {
     LOG_DEBUG("Selector double-clicked");
-    sources[currentSourceIndex]->modeDoublePressed();
+    currentSource->modeDoublePressed();
 }
 
 void selectorLongPressStarted() {
@@ -182,22 +205,22 @@ void selectorLongPressStopped() {
 
 void tuneClicked() {
     LOG_DEBUG("Tune clicked");
-    sources[currentSourceIndex]->tunePressed();
+    currentSource->tunePressed();
 }
 
 void tuneDoubleClicked() {
     LOG_DEBUG("Tune double-clicked");
-    sources[currentSourceIndex]->tuneDoublePressed();
+    currentSource->tuneDoublePressed();
 }
 
 void tuneLongPressStarted() {
     LOG_DEBUG("Tune long-press started");
-    sources[currentSourceIndex]->tuneLongPressed();
+    currentSource->tuneLongPressed();
 }
 
 void tuneLongPressStopped() {
     LOG_DEBUG("Tune long-press stopped");
-    sources[currentSourceIndex]->tuneReleased();
+    currentSource->tuneReleased();
 }
 
 void setup() {
@@ -229,6 +252,15 @@ void setup() {
 
     LOG_DEBUG("Initializing audio sources...");
 
+    auto cfg = i2s.defaultConfig();
+    cfg.pin_bck = I2S_SCK;
+    cfg.pin_ws = I2S_WS;
+    cfg.pin_data = I2S_SDOUT;
+    cfg.pin_data_rx = I2S_SDIN;
+    // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
+    i2s.begin(cfg);
+
+    dabradio::Bluetooth::bluetoothSink = &bluetoothSink;
     sources[0] = new dabradio::FMRadio(display, &dab);
     sources[1] = new dabradio::DABRadio(display, &dab);
     sources[2] = new dabradio::Bluetooth(display);
@@ -282,7 +314,7 @@ void loop() {
         source->tick();
     }
 
-    if (sources[currentSourceIndex]->needsRadio) {
+    if (currentSource->needsRadio) {
         dab.task();
     }
 
@@ -313,9 +345,9 @@ void loop() {
         RotaryEncoder::Direction tuneDirection = tuneEncoder.getDirection();
         LOG_DEBUG("Tuning %s", tuneDirection == RotaryEncoder::Direction::CLOCKWISE ? "UP" : "DOWN");
         if (tuneDirection == RotaryEncoder::Direction::CLOCKWISE) {
-            sources[currentSourceIndex]->tuneUp();
+            currentSource->tuneUp();
         } else {
-            sources[currentSourceIndex]->tuneDown();
+            currentSource->tuneDown();
         }
         tunerPosition = newTunerPosition;
     }

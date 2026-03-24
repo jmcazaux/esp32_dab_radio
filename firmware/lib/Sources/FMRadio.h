@@ -46,8 +46,8 @@ namespace com::ironbird::esp32dabradio {
         public:
             uint16_t frequency = 0;
 
-            char serviceName[64] = "";
-            char serviceData[128] = "";
+            char serviceName[SERVICE_INFO_NAME_LENGTH + 1] = "";
+            char serviceData[SERVICE_INFO_DATA_LENGTH + 1] = "";
 
             uint16_t year = 0;
             uint8_t month = 0;
@@ -67,7 +67,7 @@ namespace com::ironbird::esp32dabradio {
 
         struct Preset {
             uint16_t frequency = 8750;
-            char name[32] = "";
+            char name[PRESET_NAME_LENGTH + 1] = "";
         };
 
         DAB *dab;

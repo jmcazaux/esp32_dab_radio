@@ -99,7 +99,12 @@ namespace com::ironbird::esp32dabradio {
         modeOrTuningChanged();
 
         active = true;
-        LOG_INFO("Activated FM source \"%s\"", name);
+        LOG_INFO("Activated source \"%s\"", name);
+    }
+
+    void FMRadio::deactivate() {
+        LOG_DEBUG("Deactivating source \"%s\"...", name);
+        active = false;
     }
 
     void FMRadio::tick() {
@@ -171,7 +176,7 @@ namespace com::ironbird::esp32dabradio {
     void FMRadio::tunePreset(const Preset &preset) {
         dab->tune(preset.frequency);
         serviceInfo.frequency = preset.frequency;
-        strncpy(serviceInfo.serviceName, preset.name, 32);
+        strncpy(serviceInfo.serviceName, preset.name, SERVICE_INFO_NAME_LENGTH);
         modeOrTuningChanged();
     }
 
@@ -288,7 +293,7 @@ namespace com::ironbird::esp32dabradio {
         memorizingPreset = false;
 
         memoryPresets[targetMemoryPreset].frequency = dab->freq;
-        strncpy(memoryPresets[targetMemoryPreset].name, serviceInfo.serviceName, 32);
+        strncpy(memoryPresets[targetMemoryPreset].name, serviceInfo.serviceName, PRESET_NAME_LENGTH);
         targetMemoryPreset = 0;
         displayServiceInfo();
         savePresets();
@@ -302,12 +307,6 @@ namespace com::ironbird::esp32dabradio {
 
     void FMRadio::modeDoublePressed() {
         refreshListPresets();
-    }
-
-    void FMRadio::deactivate() {
-        LOG_DEBUG("De-activating \"%s\"...", name);
-        active = false;
-        LOG_INFO("De-activated \"%s\"", name);
     }
 
     void FMRadio::modeOrTuningChanged() {
@@ -404,7 +403,7 @@ namespace com::ironbird::esp32dabradio {
         for (auto &[frequency, name]: listPresets) {
             if (frequency == info.frequency && strcmp(name, info.serviceName) != 0) {
                 LOG_DEBUG("Updating name of preset at %.1fMHz", frequency / 100.0);
-                strncpy(name, info.serviceName, 32);
+                strncpy(name, info.serviceName, SERVICE_INFO_NAME_LENGTH);
 
                 savePresets();
             }
@@ -457,7 +456,7 @@ namespace com::ironbird::esp32dabradio {
 
         for (JsonObject preset: jsonListPresets) {
             auto newPreset = Preset{};
-            strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+            strncpy(newPreset.name, preset[NAME_JSON_KEY], PRESET_NAME_LENGTH);
             newPreset.frequency = preset[FREQUENCY_JSON_KEY];
             listPresets.emplace_back(newPreset);
         }
@@ -468,7 +467,7 @@ namespace com::ironbird::esp32dabradio {
 
         for (JsonObject preset: jsonMemoryPresets) {
             auto newPreset = Preset{};
-            strncpy(newPreset.name, preset[NAME_JSON_KEY], 32);
+            strncpy(newPreset.name, preset[NAME_JSON_KEY], PRESET_NAME_LENGTH);
             newPreset.frequency = preset[FREQUENCY_JSON_KEY];
             memoryPresets.emplace_back(newPreset);
         }
@@ -479,7 +478,7 @@ namespace com::ironbird::esp32dabradio {
     void FMRadio::displayInformation() {
         LOG_DEBUG("Loading new service information...");
         ServiceInfo newServiceInfo{};
-        char buffer[128];
+        char buffer[SERVICE_INFO_NAME_LENGTH + 1];
 
         dab->status();
 
@@ -492,10 +491,10 @@ namespace com::ironbird::esp32dabradio {
         newServiceInfo.minute = dab->Minutes;
 
         sprintf(buffer, "%s", dab->ps);
-        sprintf(newServiceInfo.serviceName, "%s", trim(buffer));
+        strncpy(newServiceInfo.serviceName, trim(buffer), PRESET_NAME_LENGTH);
 
         sprintf(buffer, "%s", dab->ServiceData);
-        sprintf(newServiceInfo.serviceData, "%s", trim(buffer));
+        strncpy(newServiceInfo.serviceData, trim(buffer), SERVICE_INFO_DATA_LENGTH);
 
         newServiceInfo.signalStrength = dab->signalstrength;
         newServiceInfo.snr = dab->snr;
