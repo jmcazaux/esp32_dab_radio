@@ -35,10 +35,9 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
-#define I2S_SCK 25               // Audio data bit clock (from I2S master = DABShield)
-#define I2S_SDOUT 02             // Audio data output (to DAC)
-#define I2S_WS 04                // Audio data left and right clock (from I2S master = DABShield)
-#define I2S_SDIN 33              // Audio data input (from DAB Shield)
+#define I2S_BCK 33               // Audio data bit clock (from I2S master = DABShield)
+#define I2S_SDOUT 32             // Audio data output (to DAC)
+#define I2S_WS 15                // Audio data left and right clock (from I2S master = DABShield)
 
 #define DAB_SPI_SLAVE_SELECT 12
 
@@ -118,6 +117,7 @@ void enableRadio() {
     display->displayLine(SWITCHING_RADIO_ON, 2, dabradio::CENTER);
     dab.setCallback(dabServiceDataCallback);
     dab.mute(true, true); // Avoid "tuning" noises
+    dab.speaker(SPEAKER_NONE);
     dab.begin(1); // Actual mode set by the AudioSource
     if (dab.error != 0) {
         LOG_ERROR("DABShield error: %s", dab.error);
@@ -146,7 +146,7 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
         const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
         LOG_DEBUG("Setting CPU frequency to %ldMhz...", frequency);
-        Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
+        Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh baud rate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
         logCpuFrequencies();
@@ -253,12 +253,19 @@ void setup() {
     LOG_DEBUG("Initializing audio sources...");
 
     auto cfg = i2s.defaultConfig();
-    cfg.pin_bck = I2S_SCK;
+    cfg.pin_bck = I2S_BCK;
     cfg.pin_ws = I2S_WS;
     cfg.pin_data = I2S_SDOUT;
-    cfg.pin_data_rx = I2S_SDIN;
-    // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
-    i2s.begin(cfg);
+
+    auto i2sInitialized = i2s.begin(cfg);
+
+    if (!i2sInitialized) {
+        LOG_ERROR("Failed to initialize i2s library... Things will go wrong!");
+    } else {
+        LOG_INFO("I2S library initialized");
+        cfg.logInfo();
+    }
+
 
     dabradio::Bluetooth::bluetoothSink = &bluetoothSink;
     sources[0] = new dabradio::FMRadio(display, &dab);
@@ -269,6 +276,8 @@ void setup() {
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
     SPI.begin();
     dab.speaker(SPEAKER_DIFF);
+
+    enableRadio();
 
     LOG_INFO("Initialized Audio sources: ");
     for (u_int8_t i = 0; i < NB_SOURCES; i++) {
@@ -288,8 +297,6 @@ void setup() {
     tuneButton.attachLongPressStart(tuneLongPressStarted);
     tuneButton.attachLongPressStop(tuneLongPressStopped);
     LOG_INFO("Initialized buttons");
-
-    delay(1500);
 
     // Restoring previous source
     currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % NB_SOURCES; // Just to make sure

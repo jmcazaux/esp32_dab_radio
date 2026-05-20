@@ -47,7 +47,7 @@ namespace com::ironbird::esp32dabradio {
 
     void Bluetooth::onPlayStatusChanged(esp_avrc_playback_stat_t rawPlayStatus) {
         auto playStatus = mapPlayStatus(rawPlayStatus);
-        ESP_LOGD(LOG_TAG, "Play status changed 0x%x (source 0x%x)", internalPlayStatus, playStatus);
+        ESP_LOGD(LOG_TAG, "Play status changed 0x%x (source 0x%x)", playStatus, rawPlayStatus);
         auto *instance = static_cast<Bluetooth *>(bluetoothSink->get_reference());
         instance->setPlayStatus(playStatus);
     }
@@ -104,7 +104,7 @@ namespace com::ironbird::esp32dabradio {
 
         // Artist + album
         char buffer[SERVICE_INFO_DATA_LENGTH * 2 + 4];
-        if (strlen(serviceInfo.artist) & strlen(serviceInfo.album)) {
+        if (strlen(serviceInfo.artist) && strlen(serviceInfo.album)) {
             sprintf(buffer, "%s - %s", serviceInfo.artist, serviceInfo.album);
         } else {
             // Only either is filled
