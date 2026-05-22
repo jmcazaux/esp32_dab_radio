@@ -107,9 +107,27 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 }
 
 void enableBluetooth() {
+    LOG_DEBUG("Enabling I2S...");
+    auto cfg = i2s.defaultConfig();
+    cfg.pin_bck = I2S_BCK;
+    cfg.pin_ws = I2S_WS;
+    cfg.pin_data = I2S_SDOUT;
+
+    auto i2sInitialized = i2s.begin(cfg);
+
+    if (!i2sInitialized) {
+        LOG_ERROR("Failed to initialize i2s library... Things will go wrong!");
+    } else {
+        LOG_INFO("I2S library initialized");
+        cfg.logInfo();
+    }
+    LOG_INFO("Enabled I2S");
 }
 
 void disableBluetooth() {
+    LOG_DEBUG("Disabling I2S...");
+    i2s.end();
+    LOG_INFO("Disabled I2S");
 }
 
 void enableRadio() {
@@ -252,21 +270,6 @@ void setup() {
 
     LOG_DEBUG("Initializing audio sources...");
 
-    auto cfg = i2s.defaultConfig();
-    cfg.pin_bck = I2S_BCK;
-    cfg.pin_ws = I2S_WS;
-    cfg.pin_data = I2S_SDOUT;
-
-    auto i2sInitialized = i2s.begin(cfg);
-
-    if (!i2sInitialized) {
-        LOG_ERROR("Failed to initialize i2s library... Things will go wrong!");
-    } else {
-        LOG_INFO("I2S library initialized");
-        cfg.logInfo();
-    }
-
-
     dabradio::Bluetooth::bluetoothSink = &bluetoothSink;
     sources[0] = new dabradio::FMRadio(display, &dab);
     sources[1] = new dabradio::DABRadio(display, &dab);
@@ -277,7 +280,6 @@ void setup() {
     SPI.begin();
     dab.speaker(SPEAKER_DIFF);
 
-    enableRadio();
 
     LOG_INFO("Initialized Audio sources: ");
     for (u_int8_t i = 0; i < NB_SOURCES; i++) {
