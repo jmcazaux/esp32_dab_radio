@@ -35,10 +35,19 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
-#define I2S_SCK 25               // Audio data bit clock (from I2S master = DABShield)
-#define I2S_SDOUT 02             // Audio data output (to DAC)
-#define I2S_WS 04                // Audio data left and right clock (from I2S master = DABShield)
-#define I2S_SDIN 33              // Audio data input (from DAB Shield)
+
+#define I2S_BCK 33               // DAC / I2S: Audio data bit clock
+#define I2S_SDOUT 32             // DAC / I2S: Audio data output (to DAC)
+#define I2S_WS 15                // DAC / I2S: Audio data left and right clock
+
+// The I2S switch used to select between the inter I2S source and the DABShield I2S source behaved very strangely.
+// Depending on the source, it must or must absolutely not be connected to power.
+// Not being able to trace the electrical issue itself, I "obeyed" the demand.
+// The below pin drives 2 relays:
+//    - one connects the I2S switch to the power
+//    - the other closes the I2S switch command
+// When the below is up, the I2S switch should not be powered, the switch command should be opened
+#define I2S_SWITCH 2             // To I2S Switch command (switch source + power)
 
 #define DAB_SPI_SLAVE_SELECT 12
 
@@ -118,6 +127,7 @@ void enableRadio() {
     display->displayLine(SWITCHING_RADIO_ON, 2, dabradio::CENTER);
     dab.setCallback(dabServiceDataCallback);
     dab.mute(true, true); // Avoid "tuning" noises
+    dab.speaker(SPEAKER_NONE);
     dab.begin(1); // Actual mode set by the AudioSource
     if (dab.error != 0) {
         LOG_ERROR("DABShield error: %s", dab.error);
@@ -146,7 +156,7 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
     if (fromSource == nullptr || toSource->needsLowCpuFrequency != fromSource->needsLowCpuFrequency) {
         const long frequency = toSource->needsLowCpuFrequency ? LOW_CPU_CLOCK_MHZ : HIGH_CPU_CLOCK_MHZ;
         LOG_DEBUG("Setting CPU frequency to %ldMhz...", frequency);
-        Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh buadRate
+        Serial.flush(); // Console is mingled at lowest frequencies. Need to flush and refresh baud rate
         setCpuFrequencyMhz(frequency);
         Serial.updateBaudRate(MONITOR_SPEED);
         logCpuFrequencies();
@@ -156,8 +166,11 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
     // Toggle DAB: doing here to avoid on/off/on when switching from FM to DAB
     if (fromSource == nullptr || toSource->needsRadio != fromSource->needsRadio) {
         if (toSource->needsRadio) {
+            pinMode(I2S_SWITCH, OUTPUT);
+            digitalWrite(I2S_SWITCH, HIGH); // Output from DAB needs power
             enableRadio();
         } else {
+            pinMode(I2S_SWITCH, INPUT);
             disableRadio();
         }
     }
@@ -253,10 +266,9 @@ void setup() {
     LOG_DEBUG("Initializing audio sources...");
 
     auto cfg = i2s.defaultConfig();
-    cfg.pin_bck = I2S_SCK;
+    cfg.pin_bck = I2S_BCK;
     cfg.pin_ws = I2S_WS;
     cfg.pin_data = I2S_SDOUT;
-    cfg.pin_data_rx = I2S_SDIN;
     // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
     i2s.begin(cfg);
 
@@ -289,7 +301,8 @@ void setup() {
     tuneButton.attachLongPressStop(tuneLongPressStopped);
     LOG_INFO("Initialized buttons");
 
-    delay(1500);
+    // I2S switch board
+    pinMode(I2S_SWITCH, OUTPUT);
 
     // Restoring previous source
     currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % NB_SOURCES; // Just to make sure
