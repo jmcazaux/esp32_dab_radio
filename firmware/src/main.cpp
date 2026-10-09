@@ -35,9 +35,19 @@ namespace dabradio = com::ironbird::esp32dabradio;
 #define TUNE_ENCODER_SW 13       // to SW pin of the mode selector rotary encoder
 #define TUNE_ENCODER_DT 35       // to DT pin of the mode selector rotary encoder
 #define TUNE_ENCODER_CLK 34      // to CLK pin of the mode selector rotary encoder
-#define I2S_BCK 33               // Audio data bit clock (from I2S master = DABShield)
-#define I2S_SDOUT 32             // Audio data output (to DAC)
-#define I2S_WS 15                // Audio data left and right clock (from I2S master = DABShield)
+
+#define I2S_BCK 33               // DAC / I2S: Audio data bit clock
+#define I2S_SDOUT 32             // DAC / I2S: Audio data output (to DAC)
+#define I2S_WS 15                // DAC / I2S: Audio data left and right clock
+
+// The I2S switch used to select between the inter I2S source and the DABShield I2S source behaved very strangely.
+// Depending on the source, it must or must absolutely not be connected to power.
+// Not being able to trace the electrical issue itself, I "obeyed" the demand.
+// The below pin drives 2 relays:
+//    - one connects the I2S switch to the power
+//    - the other closes the I2S switch command
+// When the below is up, the I2S switch should not be powered, the switch command should be opened
+#define I2S_SWITCH 2             // To I2S Switch command (switch source + power)
 
 #define DAB_SPI_SLAVE_SELECT 12
 
@@ -107,27 +117,9 @@ void DABSpiMsg(unsigned char *data, uint32_t len) {
 }
 
 void enableBluetooth() {
-    LOG_DEBUG("Enabling I2S...");
-    auto cfg = i2s.defaultConfig();
-    cfg.pin_bck = I2S_BCK;
-    cfg.pin_ws = I2S_WS;
-    cfg.pin_data = I2S_SDOUT;
-
-    auto i2sInitialized = i2s.begin(cfg);
-
-    if (!i2sInitialized) {
-        LOG_ERROR("Failed to initialize i2s library... Things will go wrong!");
-    } else {
-        LOG_INFO("I2S library initialized");
-        cfg.logInfo();
-    }
-    LOG_INFO("Enabled I2S");
 }
 
 void disableBluetooth() {
-    LOG_DEBUG("Disabling I2S...");
-    i2s.end();
-    LOG_INFO("Disabled I2S");
 }
 
 void enableRadio() {
@@ -174,8 +166,11 @@ void switchSource(const int fromSourceIdx, const int toSourceIdx) {
     // Toggle DAB: doing here to avoid on/off/on when switching from FM to DAB
     if (fromSource == nullptr || toSource->needsRadio != fromSource->needsRadio) {
         if (toSource->needsRadio) {
+            pinMode(I2S_SWITCH, OUTPUT);
+            digitalWrite(I2S_SWITCH, HIGH); // Output from DAB needs power
             enableRadio();
         } else {
+            pinMode(I2S_SWITCH, INPUT);
             disableRadio();
         }
     }
@@ -270,6 +265,13 @@ void setup() {
 
     LOG_DEBUG("Initializing audio sources...");
 
+    auto cfg = i2s.defaultConfig();
+    cfg.pin_bck = I2S_BCK;
+    cfg.pin_ws = I2S_WS;
+    cfg.pin_data = I2S_SDOUT;
+    // cfg.is_master = false; TODO uncomment when DAB configuration is dealt with
+    i2s.begin(cfg);
+
     dabradio::Bluetooth::bluetoothSink = &bluetoothSink;
     sources[0] = new dabradio::FMRadio(display, &dab);
     sources[1] = new dabradio::DABRadio(display, &dab);
@@ -279,7 +281,6 @@ void setup() {
     digitalWrite(DAB_SPI_SLAVE_SELECT, HIGH);
     SPI.begin();
     dab.speaker(SPEAKER_DIFF);
-
 
     LOG_INFO("Initialized Audio sources: ");
     for (u_int8_t i = 0; i < NB_SOURCES; i++) {
@@ -299,6 +300,9 @@ void setup() {
     tuneButton.attachLongPressStart(tuneLongPressStarted);
     tuneButton.attachLongPressStop(tuneLongPressStopped);
     LOG_INFO("Initialized buttons");
+
+    // I2S switch board
+    pinMode(I2S_SWITCH, OUTPUT);
 
     // Restoring previous source
     currentSourceIndex = preferences.getInt(PREVIOUS_SOURCE_KEY, 0) % NB_SOURCES; // Just to make sure
